@@ -45,7 +45,8 @@
 void dvbscan_dump_tuningdata (  FILE *f,
                                 struct transponder *t,
                                 uint16_t index,
-                                struct w_scan_flags * flags) {
+                                struct w_scan_flags * flags,
+                                int total_frequencies) {
         const char * network_name = t->network_name; 
         if (index == 0) {
                 struct tm * ti;
@@ -72,6 +73,7 @@ void dvbscan_dump_tuningdata (  FILE *f,
                         fprintf (f, "# location and provider: <add description here>\n");
                 fprintf (f, "# date (yyyy-mm-dd)    : %.04d-%.02d-%.02d\n",
                                         ti->tm_year + 1900, ti->tm_mon + 1, ti->tm_mday);
+                fprintf (f, "# frequencies detected : %d\n", total_frequencies);
                 fprintf (f, "# provided by (opt)    : <your name or email here>\n");
                 fprintf (f, "#\n");
 
@@ -116,7 +118,7 @@ void dvbscan_dump_tuningdata (  FILE *f,
                                         int service_count = 0;
                                         fprintf (f, " | Services: ");
                                         
-                                        for(s = (t->services)->first; s && service_count < 5; s = s->next) {
+                                        for(s = (t->services)->first; s; s = s->next) {
                                                 if (s->service_name && strlen(s->service_name) > 0) {
                                                         if (service_count > 0) fprintf (f, ", ");
                                                         fprintf (f, "%s", s->service_name);
@@ -134,9 +136,6 @@ void dvbscan_dump_tuningdata (  FILE *f,
                                                         }
                                                         service_count++;
                                                 }
-                                        }
-                                        if (t->services->count > 5) {
-                                                fprintf (f, " +%d more", t->services->count - 5);
                                         }
                                 }
                         }

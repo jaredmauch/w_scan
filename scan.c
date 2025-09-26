@@ -2924,12 +2924,15 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      if (timeout_expired(&timeout) || flags.emulate) break;
                      usleep(50000);
                      }
-                 if ((ret & FE_HAS_LOCK) == 0) {
+                 // For ATSC, accept signals with FE_HAS_SIGNAL | FE_HAS_CARRIER even without full lock
+                 // Some ATSC signals may not achieve FE_HAS_LOCK but are still usable
+                 if ((ret & (FE_HAS_SIGNAL | FE_HAS_CARRIER)) == 0) {
                     if (sr_parm == dvbc_symbolrate_max)
                        info("\n");
                     continue;
                     }
-                 verbose("\n        (%.3fsec) lock\n", elapsed(&meas_start, &meas_stop));
+                 verbose("\n        (%.3fsec) %s\n", elapsed(&meas_start, &meas_stop), 
+                         (ret & FE_HAS_LOCK) ? "lock" : "signal");
 
                  if ((test.type == SCAN_TERRESTRIAL) && (delsys != fe_get_delsys(frontend_fd, NULL))) {
                     verbose("wrong delsys: skip over.\n");                    // cxd2820r: T <-> T2
@@ -2941,10 +2944,10 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      verbose("        stabilizing frontend...\n");
                      usleep(300000); // 300ms stabilization period for ATSC
                      
-                     // Verify lock is still present after stabilization
+                     // Verify signal is still present after stabilization
                      ret = check_frontend(frontend_fd, 1); // Use verbose=1 to show final lock status
-                     if (!(ret & FE_HAS_LOCK)) {
-                        verbose("        lock lost during stabilization, skipping\n");
+                     if (!(ret & (FE_HAS_SIGNAL | FE_HAS_CARRIER))) {
+                        verbose("        signal lost during stabilization, skipping\n");
                         continue;
                         }
                      }
@@ -3252,9 +3255,19 @@ static void dump_lists(int adapter, int frontend) {
      default:;
      }
 
+  // Count frequencies for ATSC output
+  int frequency_count = 0;
+  if (output_format == OUTPUT_DVBSCAN_TUNING_DATA) {
+     for(t = scanned_transponders->first; t; t = t->next) {
+        if ((t->source >> 8) == 64) {
+           frequency_count++;
+           }
+        }
+     }
+
   for(t = scanned_transponders->first; t; t = t->next) {
      if (output_format == OUTPUT_DVBSCAN_TUNING_DATA && ((t->source >> 8) == 64)) {
-        dvbscan_dump_tuningdata(dest, t, index++, &flags);
+        dvbscan_dump_tuningdata(dest, t, index++, &flags, frequency_count);
         continue;
         }                        
      for(s = (t->services)->first; s; s = s->next) {

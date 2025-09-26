@@ -34,7 +34,8 @@ extern void dvbscan_dump_tuningdata (
                                 FILE *f,
                                 struct transponder *t,
                                 uint16_t index,
-                                struct w_scan_flags * flags);
+                                struct w_scan_flags * flags,
+                                int total_frequencies);
 
 
 #endif
