@@ -2537,8 +2537,9 @@ static uint16_t check_frontend(int fd, int verbose) {
      ioctl(fd, FE_READ_BER, &ber);
      ioctl(fd, FE_READ_UNCORRECTED_BLOCKS, &uncorrected_blocks);
      
-     // Display signal statistics whenever there's any signal (not just when locked)
-     if (status & (FE_HAS_SIGNAL | FE_HAS_CARRIER | FE_HAS_LOCK)) {
+     // Only display signal statistics when explicitly requested (verbose > 0)
+     // This prevents spam during lock detection loops
+     if (verbose > 0 && (status & (FE_HAS_SIGNAL | FE_HAS_CARRIER | FE_HAS_LOCK))) {
         display_signal_stats(signal, snr, ber, uncorrected_blocks, status);
         }
      }
@@ -2941,7 +2942,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      usleep(300000); // 300ms stabilization period for ATSC
                      
                      // Verify lock is still present after stabilization
-                     ret = check_frontend(frontend_fd, 0);
+                     ret = check_frontend(frontend_fd, 1); // Use verbose=1 to show final lock status
                      if (!(ret & FE_HAS_LOCK)) {
                         verbose("        lock lost during stabilization, skipping\n");
                         continue;
@@ -2976,6 +2977,9 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      t->uncorrected_blocks = uncorrected_blocks;
                      t->signal_quality = strdup(get_signal_quality(t->signal_strength_dbm, t->snr_db));
                      t->video_resolution = NULL; // Will be set later when services are parsed
+                     
+                     // Display final stabilized signal statistics
+                     display_signal_stats(signal_raw, snr_raw, ber, uncorrected_blocks, status);
                  }
                  
                  print_transponder(buffer, t);
