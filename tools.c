@@ -816,18 +816,21 @@ double snr_to_db(uint16_t snr_raw) {
 
 /**
  * Get signal quality description based on signal strength and SNR
+ * Uses ATSC-specific thresholds for better accuracy
  * @param signal_dbm Signal strength in dBm
  * @param snr_db SNR in dB
  * @return Quality description string
  */
 const char * get_signal_quality(double signal_dbm, double snr_db) {
-  if (signal_dbm < -90.0 || snr_db < 5.0) {
+  // ATSC-specific thresholds (8VSB typically needs C/N of 15-16 dB for good reception)
+  // ATSC signals are often much stronger in dBm than DVB signals
+  if (signal_dbm < -90.0 || snr_db < 8.0) {
     return "Poor";
-  } else if (signal_dbm < -80.0 || snr_db < 10.0) {
+  } else if (signal_dbm < -80.0 || snr_db < 12.0) {
     return "Fair";
   } else if (signal_dbm < -70.0 || snr_db < 15.0) {
     return "Good";
-  } else if (signal_dbm < -60.0 || snr_db < 20.0) {
+  } else if (signal_dbm < -50.0 || snr_db < 18.0) {
     return "Very Good";
   } else {
     return "Excellent";
