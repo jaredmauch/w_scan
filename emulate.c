@@ -269,13 +269,14 @@ static int has_lock(fe_delivery_system_t em_delsys, struct transponder * t) {
            return 0;
            }
         /* fall trough. */
+        __attribute__((fallthrough));
      case SYS_DVBS:
         if (em_device.highband)
-           tp_if = abs(t->frequency - em_device.lnb_high);
+           tp_if = (t->frequency > em_device.lnb_high ? t->frequency - em_device.lnb_high : em_device.lnb_high - t->frequency);
         else
-           tp_if = abs(t->frequency - em_device.lnb_low);
+           tp_if = (t->frequency > em_device.lnb_low ? t->frequency - em_device.lnb_low : em_device.lnb_low - t->frequency);
 
-        if (abs(tp_if - em_device.frequency) > 2000) {
+        if ((tp_if > em_device.frequency ? tp_if - em_device.frequency : em_device.frequency - tp_if) > 2000) {
            EM_INFO("t->frequency = %u: tp_if = %u <-> em_device.frequency = %u\n", t->frequency, tp_if, em_device.frequency);
            return 0;
            }
@@ -724,7 +725,8 @@ static int parse_logfile(const char * log) {
            char * pEnd;
            p += 10;
            pEnd = strchr(p, 39); *pEnd = 0;
-           strncpy(&em_device.fe_info.name[0], p, 128);
+           strncpy(&em_device.fe_info.name[0], p, 127);
+           em_device.fe_info.name[127] = '\0';
            em_device.T2_delsys_bug = strstr(em_device.fe_info.name, "CXD2820R") != NULL;
            continue;
            }
@@ -975,6 +977,7 @@ static int parse_logfile(const char * log) {
                  break;
               case SYS_ATSC:
                  sidata->t.type                              = SCAN_TERRCABLE_ATSC;
+                 __attribute__((fallthrough));
               default:
                  fatal("unsupported del sys.\n");
               }

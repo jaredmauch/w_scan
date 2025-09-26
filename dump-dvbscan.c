@@ -99,6 +99,47 @@ void dvbscan_dump_tuningdata (  FILE *f,
                         fprintf (f, "A ");
                         fprintf (f, "%9i ",  t->frequency);
                         fprintf (f, "%8s", atsc_mod_to_txt(t->modulation));
+                        
+                        // Add detailed signal and service information as comments
+                        if (t->signal_quality != NULL) {
+                                fprintf (f, "\t# Signal: %s (%.1f dBm), SNR: %.1f dB", 
+                                        t->signal_quality, t->signal_strength_dbm, t->snr_db);
+                                
+                                // Add video quality if available
+                                if (t->video_resolution != NULL) {
+                                        fprintf (f, ", Video: %s", t->video_resolution);
+                                }
+                                
+                                // Add service information if available
+                                if (t->services->count > 0) {
+                                        struct service *s;
+                                        int service_count = 0;
+                                        fprintf (f, " | Services: ");
+                                        
+                                        for(s = (t->services)->first; s && service_count < 5; s = s->next) {
+                                                if (s->service_name && strlen(s->service_name) > 0) {
+                                                        if (service_count > 0) fprintf (f, ", ");
+                                                        fprintf (f, "%s", s->service_name);
+                                                        if (s->logical_channel_number > 0) {
+                                                                // Format ATSC channel number as major:minor
+                                                                // Based on the values: 57345 = 56:1, 63489 = 62:1
+                                                                // It appears to be stored as (major << 10) | minor
+                                                                int major = s->logical_channel_number >> 10;
+                                                                int minor = s->logical_channel_number & 0x3FF;
+                                                                if (minor > 0) {
+                                                                        fprintf (f, " (Ch %d:%d)", major, minor);
+                                                                } else {
+                                                                        fprintf (f, " (Ch %d)", major);
+                                                                }
+                                                        }
+                                                        service_count++;
+                                                }
+                                        }
+                                        if (t->services->count > 5) {
+                                                fprintf (f, " +%d more", t->services->count - 5);
+                                        }
+                                }
+                        }
                         break;
                 case SCAN_CABLE:
                         fprintf (f, "C ");

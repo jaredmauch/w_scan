@@ -5,6 +5,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <math.h>
 #include "extended_frontend.h"
 #include "scan.h"
 #include "satellites.h"
@@ -228,7 +229,7 @@ static float hex_to_float(const int bin_val) {
 }
 
 /******************************************************************************
- * returns the angle (0.0° .. 359.9°)
+ * returns the angle (0.0ï¿½ .. 359.9ï¿½)
  * for a given satellite from sat_list[]
  *
  ******************************************************************************/
@@ -325,7 +326,7 @@ extern int rotate_rotor (int frontend_fd, int * from, int to, uint8_t voltage_18
                 if (*from != to) {
                         if (*from < 0) {
                                 /* starting from unknown position, therefore 
-                                 * assuming worst case: 180°
+                                 * assuming worst case: 180ï¿½
                                  * diseqc-2.2 rotor should stop earlier
                                  */
                                 rotation_angle = 180;
@@ -343,7 +344,7 @@ extern int rotate_rotor (int frontend_fd, int * from, int to, uint8_t voltage_18
                                         satellite_to_short_name(to_satlist_index),
                                         sat_list[to_satlist_index].rotor_position);
 
-                                rotation_angle = abs(rotor_angle(to_satlist_index) - rotor_angle(from_satlist_index));
+                                rotation_angle = fabsf(rotor_angle(to_satlist_index) - rotor_angle(from_satlist_index));
                                 if (rotation_angle > 180)
                                         rotation_angle = 360.0 - rotation_angle;
                                 }
@@ -599,7 +600,7 @@ int setup_scr(int frontend_fd, struct transponder * t, struct lnb_types_st * lnb
   uint8_t  hiband = (lnb->high_val > 0) && (t->frequency >= lnb->switch_val) ? 1:0;
   uint8_t  horiz  = t->polarization == POLARIZATION_HORIZONTAL ? 1:0; 
   uint32_t fLO    = hiband > 0 ? lnb->high_val:lnb->low_val;
-  uint16_t fIF    = ROUND(abs(t->frequency - fLO)/1000.0); // 950..2150MHz
+  uint16_t fIF    = ROUND((t->frequency > fLO ? t->frequency - fLO : fLO - t->frequency)/1000.0); // 950..2150MHz
 
   struct dvb_diseqc_master_cmd diseqc = {
      {0xE0, 0x10, 0x5A, 0x00, 0x00, 0x00}, 5};

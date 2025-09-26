@@ -134,7 +134,7 @@ void parse_w_scan_flags(const char * input_buffer, struct w_scan_flags * flags) 
 
 int dvbscan_parse_tuningdata(const char * tuningdata, struct w_scan_flags * flags) {
         FILE * initdata = NULL;
-        char * buf = (char *) calloc(sizeof(char), MAX_LINE_LENGTH);
+        char * buf = (char *) calloc(MAX_LINE_LENGTH, sizeof(char));
         enum __dvbscan_args arg;
         struct transponder * tn;
         int count = 0;
@@ -153,7 +153,7 @@ int dvbscan_parse_tuningdata(const char * tuningdata, struct w_scan_flags * flag
                 }
 
         while (fgets(buf, MAX_LINE_LENGTH, initdata) != NULL) {
-                char * copy = (char *) calloc(sizeof(char), strlen(buf) + 1);
+                char * copy = (char *) calloc(strlen(buf) + 1, sizeof(char));
                 char * token;
 
                 if (copy == NULL) {
@@ -257,8 +257,8 @@ int dvbscan_parse_tuningdata(const char * tuningdata, struct w_scan_flags * flag
                                 tn->modulation = VSB_8;
                                 break;
                         default:
-                                free(buf);
                                 error("could not parse '%s' - undefined fe_type\n", buf);
+                                free(buf);
                                 return 0; // err
                         }
 
@@ -434,6 +434,7 @@ int vdr_code_from_token(const char * token) {
                                 break;
                         case 'E':
                                 neg++; // no break, fall through
+                                __attribute__((fallthrough));
                         case 'W':
                                 if (!dot)
                                         pos *= 10;
@@ -493,7 +494,7 @@ void vdr_source_to_str(int id, char * buffer, int bufsize) {
  */
 int dvbscan_parse_rotor_positions(const char * positiondata) {
         FILE * data = NULL;
-        char * buf = (char *) calloc(sizeof(char), MAX_LINE_LENGTH);
+        char * buf = (char *) calloc(MAX_LINE_LENGTH, sizeof(char));
         enum __rotor_args arg = end_of_line_rotor;
       //enum __rotor_file_formats fformat = rotor_fileformat_undef;
         struct pos_item item = {0, NULL};
@@ -513,7 +514,7 @@ int dvbscan_parse_rotor_positions(const char * positiondata) {
                 }
 
         while (fgets(buf, MAX_LINE_LENGTH, data) != NULL) {
-                char * copy = (char *) calloc(sizeof(char), strlen(buf) + 1);
+                char * copy = (char *) calloc(strlen(buf) + 1, sizeof(char));
                 char * token;
         
                 if (copy == NULL)
@@ -564,6 +565,7 @@ int dvbscan_parse_rotor_positions(const char * positiondata) {
                                                         error("could not parse %s\n", positiondata);
                                                         goto err;
                                                 }
+                                __attribute__((fallthrough));
                                 case sat_id:
                                         if (item.id)
                                                 free(item.id);
@@ -590,6 +592,7 @@ int dvbscan_parse_rotor_positions(const char * positiondata) {
                                                         error("could not parse %s\n", positiondata);
                                                         goto err;
                                                 }
+                                __attribute__((fallthrough));
                                 case end_of_line_rotor:
                                 case READ_STOP:
                                 default:

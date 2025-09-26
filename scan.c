@@ -182,6 +182,14 @@ struct transponder * alloc_transponder(uint32_t frequency, unsigned delsys, uint
   t->locks_with_params = false;
   t->delsys = delsys;
   t->polarization =polarization;
+  
+  // Initialize signal quality fields
+  t->signal_strength_dbm = 0.0;
+  t->snr_db = 0.0;
+  t->ber = 0;
+  t->uncorrected_blocks = 0;
+  t->signal_quality = NULL;
+  t->video_resolution = NULL;
 
   switch(delsys) {
      case SYS_DVBT:
@@ -259,6 +267,7 @@ static bool is_auto_params(struct transponder * t) {
         if (t->rolloff == ROLLOFF_AUTO)
            return true;
         /* fall trough. */
+        __attribute__((fallthrough));
      case SYS_DSS:
      case SYS_DVBS:
         if (t->coderate == FEC_AUTO)
@@ -791,6 +800,49 @@ struct service * alloc_service(struct transponder * t, uint16_t service_id) {
   s->transponder = t;
   AddItem(t->services, s);
   return s;
+}
+
+// Function to detect video quality based on service information
+static void update_transponder_video_quality(struct transponder * t) {
+  if (t->video_resolution != NULL) return; // Already set
+  
+  struct service * s;
+  bool has_hd = false;
+  bool has_h264 = false;
+  bool has_h265 = false;
+  int service_count = 0;
+  
+  for(s = (t->services)->first; s; s = s->next) {
+    if (s->video_pid > 0) {
+      service_count++;
+      
+      // Check for HD indicators in service name
+      if (s->service_name && strstr(s->service_name, "HD")) {
+        has_hd = true;
+      }
+      
+      // Check video stream type
+      switch(s->video_stream_type) {
+        case iso_iec_14496_10_AVC_video_stream: // H.264
+          has_h264 = true;
+          break;
+        case iso_iec_23008_2_H265_video_hevc_stream: // H.265
+          has_h265 = true;
+          break;
+        default:
+          break;
+      }
+    }
+  }
+  
+  // Determine video quality string
+  if (has_hd || has_h265) {
+    t->video_resolution = strdup("HD");
+  } else if (has_h264) {
+    t->video_resolution = strdup("SD");
+  } else if (service_count > 0) {
+    t->video_resolution = strdup("Unknown");
+  }
 }
 
 struct service * find_service(struct transponder * t, uint16_t service_id) {
@@ -2104,20 +2156,20 @@ static int set_frontend(int frontend_fd, struct transponder * t) {
                     }
 
                  if (switch_to_high_band)
-                    intermediate_freq = abs(t->frequency - this_lnb.high_val);
+                    intermediate_freq = (t->frequency > this_lnb.high_val ? t->frequency - this_lnb.high_val : this_lnb.high_val - t->frequency);
                  else
-                    intermediate_freq = abs(t->frequency - this_lnb.low_val);
+                    intermediate_freq = (t->frequency > this_lnb.low_val ? t->frequency - this_lnb.low_val : this_lnb.low_val - t->frequency);
                  }
               else { // C-Band Multipoint LNB
                  if (t->polarization == POLARIZATION_VERTICAL)
-                    intermediate_freq = abs(t->frequency - this_lnb.low_val);
+                    intermediate_freq = (t->frequency > this_lnb.low_val ? t->frequency - this_lnb.low_val : this_lnb.low_val - t->frequency);
                  else
-                    intermediate_freq = abs(t->frequency - this_lnb.high_val);
+                    intermediate_freq = (t->frequency > this_lnb.high_val ? t->frequency - this_lnb.high_val : this_lnb.high_val - t->frequency);
                  em_lnb(t->polarization != POLARIZATION_VERTICAL, this_lnb.high_val, this_lnb.low_val);
                  }
               }
            else {// Monopoint LNB w/o switch
-              intermediate_freq = abs(t->frequency - this_lnb.low_val);
+              intermediate_freq = (t->frequency > this_lnb.low_val ? t->frequency - this_lnb.low_val : this_lnb.low_val - t->frequency);
               em_lnb(0, 0, this_lnb.low_val);
               }
         em_polarization(t->polarization);
@@ -2151,6 +2203,7 @@ static int set_frontend(int frontend_fd, struct transponder * t) {
            info("\t skipped: (srate %u unsupported by driver)\n", t->symbolrate);
            return -2;
            }                        
+        __attribute__((fallthrough));
      case SCAN_TERRESTRIAL:
         if (t->delsys == SYS_DVBT2) {
            if (!(fe_info.caps & FE_CAN_2G_MODULATION)) {
@@ -2159,6 +2212,7 @@ static int set_frontend(int frontend_fd, struct transponder * t) {
               }
            }
         // no break needed here.
+        __attribute__((fallthrough));
      case SCAN_TERRCABLE_ATSC:
         if ((t->frequency < fe_info.frequency_min) || (t->frequency > fe_info.frequency_max)) {
            info("\t skipped: (freq %u unsupported by driver)\n", t->frequency);
@@ -2460,11 +2514,17 @@ static int tune_to_next_transponder(int frontend_fd) {
 }
 
 
+/**
+ * Check frontend status and display signal statistics
+ * Enhanced to show signal strength in dBm and SNR in dB with automatic
+ * format detection for different DVB driver implementations (TBS, generic, etc.)
+ * Based on MuMuDVB implementation and dvb-fe-tool reference
+ */
 static uint16_t check_frontend(int fd, int verbose) {
   fe_status_t status;
   EMUL(em_status, &status)
   ioctl(fd, FE_READ_STATUS, &status);
-  if (verbose && !flags.emulate) {
+  if (!flags.emulate) {
      uint16_t snr, signal;
      uint32_t ber, uncorrected_blocks;
 
@@ -2472,11 +2532,11 @@ static uint16_t check_frontend(int fd, int verbose) {
      ioctl(fd, FE_READ_SNR, &snr);
      ioctl(fd, FE_READ_BER, &ber);
      ioctl(fd, FE_READ_UNCORRECTED_BLOCKS, &uncorrected_blocks);
-     info("signal %04x | snr %04x | ber %08x | unc %08x | ", \
-                                                  signal, snr, ber, uncorrected_blocks);
-     if (status & FE_HAS_LOCK)
-        info("FE_HAS_LOCK");
-     info("\n");
+     
+     // Display signal statistics whenever there's any signal (not just when locked)
+     if (status & (FE_HAS_SIGNAL | FE_HAS_CARRIER | FE_HAS_LOCK)) {
+        display_signal_stats(signal, snr, ber, uncorrected_blocks, status);
+        }
      }
   return (status & 0x1F);
 }
@@ -2880,6 +2940,27 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                  init_tp(t);
 
                  copy_fe_params(t, ptest);
+                 
+                 // Capture signal quality information
+                 if (!flags.emulate) {
+                     uint16_t signal_raw, snr_raw;
+                     uint32_t ber, uncorrected_blocks;
+                     fe_status_t status;
+                     
+                     ioctl(frontend_fd, FE_READ_STATUS, &status);
+                     ioctl(frontend_fd, FE_READ_SIGNAL_STRENGTH, &signal_raw);
+                     ioctl(frontend_fd, FE_READ_SNR, &snr_raw);
+                     ioctl(frontend_fd, FE_READ_BER, &ber);
+                     ioctl(frontend_fd, FE_READ_UNCORRECTED_BLOCKS, &uncorrected_blocks);
+                     
+                     t->signal_strength_dbm = signal_strength_to_dbm(signal_raw);
+                     t->snr_db = snr_to_db(snr_raw);
+                     t->ber = ber;
+                     t->uncorrected_blocks = uncorrected_blocks;
+                     t->signal_quality = strdup(get_signal_quality(t->signal_strength_dbm, t->snr_db));
+                     t->video_resolution = NULL; // Will be set later when services are parsed
+                 }
+                 
                  print_transponder(buffer, t);
                  info("        signal ok:\t%s\n", buffer);
                  switch(ptest->type) {
@@ -3113,6 +3194,9 @@ static void dump_lists(int adapter, int frontend) {
   if (verbosity > 4) bubbleSort(scanned_transponders, cmp_freq_pol);
 
   for(t = scanned_transponders->first; t; t = t->next) {
+     // Update video quality information for this transponder
+     update_transponder_video_quality(t);
+     
      for(s = (t->services)->first; s; s = s->next) {
         if (s->video_pid && !(serv_select & 1))
            continue; /* no TV services */
@@ -3535,7 +3619,8 @@ int main(int argc, char ** argv) {
   flags.version = version;
   run_time_init();
   
-  for (opt=0; opt<argc; opt++) info("%s ", argv[opt]); info("%s", "\n");
+  for (opt=0; opt<argc; opt++) info("%s ", argv[opt]); 
+  info("%s", "\n");
 
   while((opt = getopt_long(argc, argv, "a:c:e:f:hi:l:o:p:qr:s:t:u:vxA:C:D:E:FGHI:LMO:PQ:R:S:T:VXZ", long_options, NULL)) != -1) {
      switch(opt) {

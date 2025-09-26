@@ -74,6 +74,8 @@ typedef struct section_buf {
 #define SUBTITLES_MAX     (32)
 
 struct transponder;
+#ifndef __SERVICE_STRUCT_DEFINED
+#define __SERVICE_STRUCT_DEFINED
 struct service {
   /*----------------------------*/
   void *   prev;
@@ -114,7 +116,9 @@ struct service {
   uint32_t logical_channel_number;
   uint8_t  running;
   void   * priv;
-} service_t, * p_service_t;
+};
+typedef struct service service_t;
+#endif
 
 /*******************************************************************************
 /* transponder type.
@@ -141,6 +145,8 @@ struct cell {
   struct transposer transposers[16];
 };
 
+#ifndef __TRANSPONDER_STRUCT_DEFINED
+#define __TRANSPONDER_STRUCT_DEFINED
 struct transponder {
   /*----------------------------*/
   void *   prev;
@@ -201,7 +207,16 @@ struct transponder {
   /*----------------------------*/
   char * network_name;
   network_change_t network_change;
-} __attribute__((packed))  transponder_t, * p_transponder_t;
+  /*---------------------------- signal quality information ---------------------------------*/
+  double signal_strength_dbm;             // signal strength in dBm
+  double snr_db;                          // signal-to-noise ratio in dB
+  uint32_t ber;                           // bit error rate
+  uint32_t uncorrected_blocks;            // uncorrected blocks
+  char * signal_quality;                  // quality string (e.g., "Excellent", "Very Good")
+  char * video_resolution;                // video resolution (e.g., "1080p", "720p", "480p")
+};
+typedef struct transponder transponder_t;
+#endif
 
 /*******************************************************************************
 /* satellite channel routing type.
@@ -215,5 +230,8 @@ struct scr {
   int8_t   offset;                        // 50494: -2..+2, 50607: 0
   uint8_t  norm;                          // 50494: 1     , 50607: 2
 };
+
+typedef struct service * p_service_t;
+typedef struct transponder * p_transponder_t;
 
 #endif

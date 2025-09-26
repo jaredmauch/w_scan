@@ -207,6 +207,7 @@ void parse_service_descriptor (const unsigned char *buf, struct service *s, unsi
                  default:;
                  }
               }
+        __attribute__((fallthrough));
         default:
            if (emphasis_on)
               short_len++;
@@ -251,6 +252,7 @@ void parse_service_descriptor (const unsigned char *buf, struct service *s, unsi
                  default:;
                  }
               } 
+        __attribute__((fallthrough));
         default:
            if (emphasis_on)
               provider_short_name[short_len++] = *(buf + i);
@@ -324,6 +326,7 @@ void parse_service_descriptor (const unsigned char *buf, struct service *s, unsi
                  default:;
                  }
               }
+        __attribute__((fallthrough));
         default:
                 if (emphasis_on)
                    short_len++;
@@ -368,6 +371,7 @@ void parse_service_descriptor (const unsigned char *buf, struct service *s, unsi
                  default:;
                  }
               }
+        __attribute__((fallthrough));
         default:
            if (emphasis_on)
               service_short_name[short_len++] = *(buf + i);
@@ -462,6 +466,7 @@ void parse_iso639_language_descriptor (const unsigned char *buf, struct service 
                 break;
         case 3: // visual_impaired_commentary, program element is prepared for the visually impaired viewer
                 break;
+        __attribute__((fallthrough));
         default:
                 info("unhandled audio_type.\n");
         }*/
@@ -939,6 +944,7 @@ void parse_frequency_list_descriptor(const unsigned char * buf, struct transpond
         case 3:
            f = 10 * ((buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3]);
            break;           
+        __attribute__((fallthrough));
         default:
            f = 0;
         }
@@ -1019,6 +1025,7 @@ void parse_T2_delivery_system_descriptor(const unsigned char * buf,
      switch (buf[6] >> 6) {                                                                          // SISO/MISO 2 bslbf (Multiple-Input Single-Output)
         case 0: t->SISO_MISO = 0;       break;
         case 1: t->SISO_MISO = 1;       break;
+        __attribute__((fallthrough));
         default:;
         }
      switch((buf[6] >> 2) & 0xF ) {                                                                  // bandwidth 4 bslbf
@@ -1028,6 +1035,7 @@ void parse_T2_delivery_system_descriptor(const unsigned char * buf,
         case 3: t->bandwidth = 5000000;     break;
         case 4: t->bandwidth = 10000000;    break;
         case 5: t->bandwidth = 1712000;     break;
+        __attribute__((fallthrough));
         default:t->bandwidth = 0;                                                                    //       0110 to 1111 reserved for future use -> '0' is BANDWIDTH_AUTO
         }
      //reserved_future_use = buf[6] & 0x3);                                                          // reserved_future_use 2 bslbf
@@ -1039,6 +1047,7 @@ void parse_T2_delivery_system_descriptor(const unsigned char * buf,
         case 4: t->guard = GUARD_INTERVAL_1_128;  break;
         case 5: t->guard = GUARD_INTERVAL_19_128; break;
         case 6: t->guard = GUARD_INTERVAL_19_256; break;                                             //       111 reserved for future use
+        __attribute__((fallthrough));
         default:t->guard = GUARD_INTERVAL_AUTO;                         
         }
      switch((buf[7] >> 2) & 0x7) {                                                                   // transmission_mode 3 bslbf
@@ -1048,6 +1057,7 @@ void parse_T2_delivery_system_descriptor(const unsigned char * buf,
         case 3: t->transmission = TRANSMISSION_MODE_1K;  break;
         case 4: t->transmission = TRANSMISSION_MODE_16K; break;
         case 5: t->transmission = TRANSMISSION_MODE_32K; break;
+        __attribute__((fallthrough));
         default:t->transmission = TRANSMISSION_MODE_AUTO;                                            //       110 to 111 reserved for future use
         }
      t->other_frequency_flag = ((buf[7] >> 1) & 0x1) != 0;                                           // other_frequency_flag 1 bslbf; this TS is available on other frequencies.
@@ -1303,6 +1313,7 @@ void parse_atsc_service_location_descriptor(struct service *s,const unsigned cha
            moreverbose("\tAUDIO\t: PID 0x%04x lang: %s\n",e.elementary_PID,s->audio_lang[s->audio_num-1]);
 
            break;
+        __attribute__((fallthrough));
         default:
            warning("unhandled stream_type: %X\n",e.stream_type);
            break;

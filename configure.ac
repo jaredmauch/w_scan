@@ -14,7 +14,7 @@ AC_PROG_INSTALL
 AC_PROG_CPP
 
 # define _GNU_SOURCE
-AC_GNU_SOURCE
+AC_DEFINE([_GNU_SOURCE], [1], [Enable GNU extensions])
 
 
 # Checks for libraries.

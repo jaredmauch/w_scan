@@ -34,6 +34,7 @@
 /* common typedefs && logging.                                                  
  ******************************************************************************/
 int verbosity = 2;      // need signed -> use of fatal()
+uint version = 20170107;
 
 
 
@@ -415,7 +416,7 @@ void run_time_init() {
 }
 
 const char * run_time() {
-  static char rtbuf[12];
+  static char rtbuf[32];
   struct timespec now;
   double t;
   int sec, msec;
@@ -424,7 +425,7 @@ const char * run_time() {
 
   sec = (int) t;
   msec = 1000.0 * (t - sec);
-  sprintf(&rtbuf[0], "%.2d:%.2d.%.3d", sec / 60, sec % 60, msec);
+  snprintf(&rtbuf[0], sizeof(rtbuf), "%d:%.2d.%.3d", sec / 60, sec % 60, msec);
   return &rtbuf[0];
 }
 
@@ -540,8 +541,10 @@ const char * guard_interval_name(int guard_interval) {
      case GUARD_INTERVAL_19_128 : return "GUARD_INTERVAL_19_128";
      case GUARD_INTERVAL_19_256 : return "GUARD_INTERVAL_19_256";
      case GUARD_INTERVAL_PN420  : return "GUARD_INTERVAL_PN420";
-     case GUARD_INTERVAL_PN595 : return "GUARD_INTERVAL_PN595";
-     case GUARD_INTERVAL_PN945 : return "GUARD_INTERVAL_PN945";
+     case GUARD_INTERVAL_PN595
+ : return "GUARD_INTERVAL_PN595";
+     case GUARD_INTERVAL_PN945
+ : return "GUARD_INTERVAL_PN945";
      default                    : return "GUARD_INTERVAL_AUTO";
      }
 }
@@ -743,4 +746,108 @@ bool fuzzy_section(void * s) {
  
   hexdump(__FUNCTION__,buf,1024);
   return false; // fail.
+}
+
+/*******************************************************************************
+/* Signal strength and SNR conversion functions.
+ ******************************************************************************/
+
+/**
+ * Convert DVB signal strength value to dBm
+ * Handles multiple DVB driver formats automatically based on value range
+ * @param signal_raw Raw signal strength value from FE_READ_SIGNAL_STRENGTH
+ * @return Signal strength in dBm
+ */
+double signal_strength_to_dbm(uint16_t signal_raw) {
+  if (signal_raw == 0) {
+    return -100.0; // No signal
+  }
+  
+  /* Check if the frontend supports dBm reporting */
+  /* This should be checked using FE_CAP_DBM in fe_caps, but for now */
+  /* we'll use heuristics based on the value range */
+  
+  if (signal_raw < 1000) {
+    /* Small values suggest direct dBm reporting (TBS cards with dbm=1) */
+    /* A value of 42 means -42dBm */
+    return -signal_raw;
+  } else if (signal_raw <= 100) {
+    /* Values 0-100 suggest percentage scale */
+    /* Convert percentage to approximate dBm range */
+    /* 0% = -100dBm (no signal), 100% = -20dBm (excellent) */
+    return -100.0 + (signal_raw * 80.0) / 100.0;
+  } else {
+    /* Large values suggest raw scale (0-65535) */
+    /* Convert from 0-65535 scale to approximate dBm range */
+    /* Typical DVB range: -100dBm (no signal) to -20dBm (excellent) */
+    return -100.0 + (signal_raw * 80.0) / 65535.0;
+  }
+}
+
+/**
+ * Convert DVB SNR value to dB
+ * Handles multiple DVB driver formats automatically based on value range
+ * @param snr_raw Raw SNR value from FE_READ_SNR
+ * @return SNR in dB
+ */
+double snr_to_db(uint16_t snr_raw) {
+  if (snr_raw == 0) {
+    return 0.0; // No signal
+  }
+  
+  /* Check the SNR value range to determine the correct conversion */
+  if (snr_raw < 1000) {
+    /* Small values suggest 0.1dB EsN0 format (TBS cards with esno=1) */
+    /* A value of 100 means 10dB Es/N0 */
+    /* Convert from 0.1dB units to dB */
+    return snr_raw / 10.0;
+  } else if (snr_raw <= 100) {
+    /* Values 0-100 suggest percentage scale */
+    /* Convert percentage to approximate dB range */
+    /* 0% = 0dB, 100% = 30dB */
+    return (snr_raw * 30.0) / 100.0;
+  } else {
+    /* Large values suggest raw scale (0-65535) */
+    /* Convert from 0-65535 scale to approximate dB range */
+    /* Map to 0-30dB range */
+    return (snr_raw * 30.0) / 65535.0;
+  }
+}
+
+/**
+ * Get signal quality description based on signal strength and SNR
+ * @param signal_dbm Signal strength in dBm
+ * @param snr_db SNR in dB
+ * @return Quality description string
+ */
+const char * get_signal_quality(double signal_dbm, double snr_db) {
+  if (signal_dbm < -90.0 || snr_db < 5.0) {
+    return "Poor";
+  } else if (signal_dbm < -80.0 || snr_db < 10.0) {
+    return "Fair";
+  } else if (signal_dbm < -70.0 || snr_db < 15.0) {
+    return "Good";
+  } else if (signal_dbm < -60.0 || snr_db < 20.0) {
+    return "Very Good";
+  } else {
+    return "Excellent";
+  }
+}
+
+/**
+ * Display comprehensive signal statistics in dvb-fe-tool style
+ * @param signal_raw Raw signal strength value
+ * @param snr_raw Raw SNR value
+ * @param ber Raw BER value
+ * @param uncorrected_blocks Raw uncorrected blocks value
+ * @param status Frontend status flags
+ */
+void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, uint32_t uncorrected_blocks, fe_status_t status) {
+  double signal_dbm = signal_strength_to_dbm(signal_raw);
+  double snr_db = snr_to_db(snr_raw);
+  const char * quality = get_signal_quality(signal_dbm, snr_db);
+  
+  // Display in dvb-fe-tool style format
+  info("Lock   (0x%02x) Quality= %s Signal= %.1f dBm C/N= %.1f dB UCB= %u BER= %u\n",
+       status & 0x1F, quality, signal_dbm, snr_db, uncorrected_blocks, ber);
 }
