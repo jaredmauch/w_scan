@@ -176,6 +176,11 @@ struct transponder * alloc_transponder(uint32_t frequency, unsigned delsys, uint
   bool   known = false;
   char   name[20];
   struct cell* cell;
+  
+  if (t == NULL) {
+     error("Memory allocation failed for transponder\n");
+     return NULL;
+     }
 
   t->source = 0;
   t->frequency = frequency;
@@ -213,6 +218,11 @@ struct transponder * alloc_transponder(uint32_t frequency, unsigned delsys, uint
   t->cells = &(t->_cells);
   NewList(t->cells, name);
   cell = calloc(1, sizeof(struct cell));
+  if (cell == NULL) {
+     error("Memory allocation failed for cell\n");
+     free(t);
+     return NULL;
+     }
   cell->center_frequencies[cell->num_center_frequencies++] = frequency;
   AddItem(t->cells, cell);
 
@@ -404,7 +414,8 @@ static struct transponder* find_transponder_by_freq(struct transponder * tn) {
         struct cell* c;
         int i;
 
-        for(c = (t->cells)->first; c; c = c->next) {
+        if (t->cells != NULL) {
+           for(c = (t->cells)->first; c; c = c->next) {
            for(i = 0; i < c->num_center_frequencies; i++) {
               //verbose("             checking t cell %u: center %7.3f\n", c->cell_id, c->center_frequencies[i]/1000000.0);
               if (c->center_frequencies[i] == tn->frequency) {
@@ -425,6 +436,7 @@ static struct transponder* find_transponder_by_freq(struct transponder * tn) {
                  }
               }
            }
+           }
         }
      if (is_nearly_same_frequency(t->frequency,tn->frequency,tn->type)) {
         print_transponder(buffer, t);
@@ -443,7 +455,8 @@ static struct transponder* find_transponder_by_freq(struct transponder * tn) {
         struct cell* c;
         int i;
 
-        for(c = (t->cells)->first; c; c = c->next) {
+        if (t->cells != NULL) {
+           for(c = (t->cells)->first; c; c = c->next) {
            for(i = 0; i < c->num_center_frequencies; i++) {
               //verbose("             checking t cell %u: center %7.3f\n", c->cell_id, c->center_frequencies[i]/1000000.0);
               if (c->center_frequencies[i] == tn->frequency) {
@@ -463,6 +476,7 @@ static struct transponder* find_transponder_by_freq(struct transponder * tn) {
                     }
                  }
               }
+           }
            }
         }
      if (is_nearly_same_frequency(t->frequency,tn->frequency,tn->type)) {
@@ -732,7 +746,11 @@ static void copy_transponder(struct transponder * dest, struct transponder * sou
      }
   if (source->network_name != NULL) {
      dest->network_name = (char *) calloc(strlen(source->network_name) + 1, 1);
-     memcpy(dest->network_name, source->network_name, strlen(source->network_name));
+     if (dest->network_name != NULL) {
+        memcpy(dest->network_name, source->network_name, strlen(source->network_name));
+        }
+     } else {
+     dest->network_name = NULL;
      }
   dest->cells = &(dest->_cells);  
   ClearList(dest->cells);
@@ -770,11 +788,13 @@ static void copy_transponder(struct transponder * dest, struct transponder * sou
      if (dest->network_name != NULL)
         free(dest->network_name);
      dest->network_name = (char *) malloc(strlen(source->network_name) + 1);
-     memcpy(dest->network_name, source->network_name, strlen(source->network_name));
-     dest->network_name[strlen(source->network_name)] = '\0';
-     }
-  else
+     if (dest->network_name != NULL) {
+        memcpy(dest->network_name, source->network_name, strlen(source->network_name));
+        dest->network_name[strlen(source->network_name)] = '\0';
+        }
+     } else {
      dest->network_name = NULL;
+     }
 
   if (source->network_change.num_networks > 0) {
      int i;
@@ -806,6 +826,7 @@ struct service * alloc_service(struct transponder * t, uint16_t service_id) {
 // Function to detect video quality based on service information
 static void update_transponder_video_quality(struct transponder * t) {
   if (t->video_resolution != NULL) return; // Already set
+  if (t->services == NULL) return; // Safety check
   
   struct service * s;
   bool has_hd = false;
@@ -849,6 +870,7 @@ static void update_transponder_video_quality(struct transponder * t) {
 struct service * find_service(struct transponder * t, uint16_t service_id) {
   struct service * s;
 
+  if (t == NULL || t->services == NULL) return NULL; // Safety check
   for(s = (t->services)->first; s; s = s->next) {
      if (s->service_id == service_id)
         return s;
@@ -2958,9 +2980,6 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                     }
                  verbose("\n        (%.3fsec) %s\n", elapsed(&meas_start, &meas_stop), 
                          (ret & FE_HAS_LOCK) ? "lock" : "signal");
-                 
-                 // Set initial scan lock status
-                 t->initial_scan_locked = (ret & FE_HAS_LOCK) != 0;
 
                  if ((test.type == SCAN_TERRESTRIAL) && (delsys != fe_get_delsys(frontend_fd, NULL))) {
                     verbose("wrong delsys: skip over.\n");                    // cxd2820r: T <-> T2
@@ -2986,6 +3005,10 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                  t->type = ptest->type;
                  t->source = 0;
                  t->network_name=NULL;
+                 
+                 // Set initial scan lock status
+                 t->initial_scan_locked = (ret & FE_HAS_LOCK) != 0;
+                 
                  init_tp(t);
 
                  copy_fe_params(t, ptest);
