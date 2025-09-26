@@ -2399,6 +2399,10 @@ static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v)
      }
 
   if (ret & FE_HAS_LOCK) {
+     // Add brief stabilization period after lock
+     if (!flags.emulate) {
+        usleep(100000); // 100ms stabilization period
+        }
      current_tp = t;
      t->last_tuning_failed = 0;
      t->locks_with_params = true;
@@ -2931,6 +2935,19 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                     continue;
                     }
 
+                 // Add stabilization period after lock to ensure frontend is fully tuned
+                 if (!flags.emulate) {
+                     verbose("        stabilizing frontend...\n");
+                     usleep(300000); // 300ms stabilization period for ATSC
+                     
+                     // Verify lock is still present after stabilization
+                     ret = check_frontend(frontend_fd, 0);
+                     if (!(ret & FE_HAS_LOCK)) {
+                        verbose("        lock lost during stabilization, skipping\n");
+                        continue;
+                        }
+                     }
+
                  //if (__tune_to_transponder(frontend_fd, ptest,0) < 0)
                  //   continue;
                  t = alloc_transponder(f, test.delsys, test.polarization);
@@ -2941,7 +2958,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
 
                  copy_fe_params(t, ptest);
                  
-                 // Capture signal quality information
+                 // Capture signal quality information after stabilization
                  if (!flags.emulate) {
                      uint16_t signal_raw, snr_raw;
                      uint32_t ber, uncorrected_blocks;
