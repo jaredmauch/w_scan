@@ -119,6 +119,8 @@ static unsigned int dvbc_symbolrate_min = 0;    // initialization of symbolrate 
 static unsigned int dvbc_symbolrate_max = 1;    // initialization of symbolrate loop. 6875
 static unsigned int freq_offset_min = 0;        // initialization of freq offset loop. 0 == offset (0), 1 == offset(+), 2 == offset(-), 3 == offset1(+), 4 == offset2(+)
 static unsigned int freq_offset_max = 4;        // initialization of freq offset loop.
+static uint32_t start_freq = 0;                 // start frequency for scanning (0 = use default range)
+static uint32_t end_freq = 0;                   // end frequency for scanning (0 = use default range)
 static int this_channellist = DVBT_DE;          // w_scan uses by default DVB-t
 static unsigned int ATSC_type = ATSC_VSB;       // 20090227: flag type vars shouldnt be signed. 
 static unsigned int no_ATSC_PSIP = 0;           // 20090227: initialization was missing, signed -> unsigned                
@@ -2837,6 +2839,13 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                              break;
                           default: fatal("unknown modulation id\n");
                                }
+                       
+                       // Check if frequency is within specified range
+                       if (start_freq > 0 && f < start_freq)
+                          continue; //skip frequencies below start
+                       if (end_freq > 0 && f > end_freq)
+                          continue; //skip frequencies above end
+                       
                        test.frequency         = f;
                        test.inversion         = caps_inversion;
                        test.modulation        = this_atsc;
@@ -3483,6 +3492,12 @@ static const char * ext_opts = "%s expert help\n"
   "               use 'iconv --list' for full list of charsets.\n"
   "       -I <file>, --initial <file>\n"
   "               scan using dvbscan initial_tuning_data\n"
+  "       -W <freq>, --start-freq <freq>\n"
+  "               start frequency for scanning (in Hz)\n"
+  "               e.g., 177000000 for 177 MHz\n"
+  "       -Y <freq>, --end-freq <freq>\n"
+  "               end frequency for scanning (in Hz)\n"
+  "               e.g., 180000000 for 180 MHz\n"
   "       -v, --verbose\n"
   "               be more verbose (repeat for more)\n"
   "       -q, --quiet\n"
@@ -3647,6 +3662,8 @@ static struct option long_options[] = {
     {"rotor-position"    , required_argument, NULL, 'r'},
     {"scr"               , required_argument, NULL, 'u'},
     {"use-pat"           , required_argument, NULL, 'P'},
+    {"start-freq"        , required_argument, NULL, 'W'},
+    {"end-freq"          , required_argument, NULL, 'Y'},
     {NULL                , 0                , NULL,  0 },
 };
 
@@ -3712,7 +3729,7 @@ int main(int argc, char ** argv) {
   for (opt=0; opt<argc; opt++) info("%s ", argv[opt]); 
   info("%s", "\n");
 
-  while((opt = getopt_long(argc, argv, "a:c:e:f:hi:l:o:p:qr:s:t:u:vxA:C:D:E:FGHI:LMO:PQ:R:S:T:VXZ", long_options, NULL)) != -1) {
+  while((opt = getopt_long(argc, argv, "a:c:e:f:hi:l:o:p:qr:s:t:u:vxW:Y:A:C:D:E:FGHI:LMO:PQ:R:S:T:VXZ", long_options, NULL)) != -1) {
      switch(opt) {
      case 'a': //adapter
              if (strstr(optarg, "/dev/dvb")) {
@@ -3949,6 +3966,22 @@ int main(int argc, char ** argv) {
      case 'Z': //w_scan xml output
              output_format = OUTPUT_XML;
              break;
+     case 'W': //start frequency
+             start_freq = strtoul(optarg, NULL, 0);
+             if (start_freq < 1000) {
+                error("Start frequency must be at least 1000 Hz\n");
+                cleanup();
+                return -1;
+                }
+             break;
+     case 'Y': //end frequency
+             end_freq = strtoul(optarg, NULL, 0);
+             if (end_freq < 1000) {
+                error("End frequency must be at least 1000 Hz\n");
+                cleanup();
+                return -1;
+                }
+             break;
      default: //undefined
              cleanup();
              bad_usage(argv[0]);
@@ -3972,6 +4005,14 @@ int main(int argc, char ** argv) {
          }                
       }
   serv_select = 1 * TV_Services + 2 * Radio_Services + 4 * Other_Services;
+  
+  // Validate frequency range
+  if (start_freq > 0 && end_freq > 0 && start_freq >= end_freq) {
+     error("Start frequency (%u) must be less than end frequency (%u)\n", start_freq, end_freq);
+     cleanup();
+     return -1;
+     }
+  
   if (caps_inversion > INVERSION_AUTO) {
      info("Inversion out of range!\n");
      bad_usage(argv[0]);
@@ -3984,6 +4025,18 @@ int main(int argc, char ** argv) {
      cleanup();
      return -1;
      }
+  // Display frequency range information
+  if (start_freq > 0 || end_freq > 0) {
+     if (start_freq > 0 && end_freq > 0) {
+        info("Scanning frequency range: %.3f MHz - %.3f MHz\n", 
+             start_freq / 1000000.0, end_freq / 1000000.0);
+        } else if (start_freq > 0) {
+        info("Scanning from frequency: %.3f MHz\n", start_freq / 1000000.0);
+        } else {
+        info("Scanning up to frequency: %.3f MHz\n", end_freq / 1000000.0);
+        }
+     }
+  
   switch(scantype) {
      case SCAN_TERRCABLE_ATSC:
      case SCAN_CABLE:
