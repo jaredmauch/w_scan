@@ -289,8 +289,11 @@ static bool is_auto_params(struct transponder * t) {
            return true;
         break;
      case SYS_DVBC_ANNEX_B:
-     case SYS_ATSC:
         if (t->modulation == QAM_AUTO)
+           return true;
+        break;
+     case SYS_ATSC:
+        if (t->modulation == VSB_8 || t->modulation == VSB_16)
            return true;
         break;
      default:
@@ -356,7 +359,7 @@ int is_different_transponder_deep_scan(struct transponder * a, struct transponde
                 return 1;
         return 0;
      case SCAN_TERRCABLE_ATSC:
-        if(IS_DIFFERENT(a->modulation,b->modulation,auto_allowed,QAM_AUTO))
+        if(IS_DIFFERENT(a->modulation,b->modulation,auto_allowed,VSB_8))
                 return 1;
         return 0;
      case SCAN_CABLE:
@@ -2468,7 +2471,7 @@ static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v)
   t->locks_with_params = false;
 
   /* tuning didnt work, retry with auto. */
-  if (t->delsys != SYS_DVBS2) t->modulation = QAM_AUTO;
+  if (t->delsys != SYS_DVBS2 && t->delsys != SYS_ATSC) t->modulation = QAM_AUTO;
   t->pilot = PILOT_AUTO;
   t->coderate = FEC_AUTO;
   t->guard = GUARD_INTERVAL_AUTO;
