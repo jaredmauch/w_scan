@@ -2391,6 +2391,23 @@ uint16_t service_scan_lock_timeout(uint8_t delsys) {
 
 static uint16_t check_frontend(int fd, int verbose);
 
+/**
+ * Get descriptive comment for frontend status flags
+ * @param status Frontend status flags
+ * @return Descriptive comment string
+ */
+static const char * get_fe_status_comment(uint16_t status) {
+  if (status & FE_HAS_LOCK) {
+    return "(SIGNAL+CARRIER+LOCK)";
+  } else if (status & FE_HAS_CARRIER) {
+    return "(SIGNAL+CARRIER)";
+  } else if (status & FE_HAS_SIGNAL) {
+    return "(SIGNAL)";
+  } else {
+    return "(NO_SIGNAL)";
+  }
+}
+
 static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v) {
   uint16_t ret, lastret;
   int res;
@@ -2420,11 +2437,12 @@ static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v)
      ret = check_frontend(frontend_fd,0);
      if (ret != lastret) {
         get_time(&meas_stop);
-        verbose(" (%.3fsec): %s%s%s \n",
+        verbose(" (%.3fsec): %s%s%s %s\n",
               elapsed(&meas_start, &meas_stop),
               ret & FE_HAS_SIGNAL ?"S":"",
               ret & FE_HAS_CARRIER?"C":"",
-              ret & FE_HAS_LOCK?   "L":"");
+              ret & FE_HAS_LOCK?   "L":"",
+              get_fe_status_comment(ret));
         lastret = ret;
         }
      if (timeout_expired(&timeout) || flags.emulate) break;
@@ -2439,11 +2457,12 @@ static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v)
      ret = check_frontend(frontend_fd,0);
      if (ret != lastret) {
         get_time(&meas_stop);
-        verbose(" (%.3fsec): %s%s%s \n",
+        verbose(" (%.3fsec): %s%s%s %s\n",
               elapsed(&meas_start, &meas_stop),
               ret & FE_HAS_SIGNAL ?"S":"",
               ret & FE_HAS_CARRIER?"C":"",
-              ret & FE_HAS_LOCK?   "L":"");
+              ret & FE_HAS_LOCK?   "L":"",
+              get_fe_status_comment(ret));
         lastret = ret;
         }
      if (timeout_expired(&timeout) || flags.emulate) break;
@@ -2948,12 +2967,13 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      ret = check_frontend(frontend_fd,0);
                      if (ret != lastret) {
                         get_time(&meas_stop);
-                        verbose("\n        (%.3fsec): %s%s%s (0x%X)",
+                        verbose("\n        (%.3fsec): %s%s%s (0x%X) %s",
                              elapsed(&meas_start, &meas_stop),
                              ret & FE_HAS_SIGNAL ?"S":"",
                              ret & FE_HAS_CARRIER?"C":"",
                              ret & FE_HAS_LOCK?   "L":"",
-                             ret);
+                             ret,
+                             get_fe_status_comment(ret));
                         lastret = ret;
                         }
                      if (timeout_expired(&timeout) || flags.emulate) break;
@@ -2972,12 +2992,13 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      ret = check_frontend(frontend_fd,0);
                      if (ret != lastret) {
                         get_time(&meas_stop);
-                        verbose("\n        (%.3fsec): %s%s%s (0x%X)",
+                        verbose("\n        (%.3fsec): %s%s%s (0x%X) %s",
                              elapsed(&meas_start, &meas_stop),
                              ret & FE_HAS_SIGNAL ?"S":"",
                              ret & FE_HAS_CARRIER?"C":"",
                              ret & FE_HAS_LOCK?   "L":"",
-                             ret);
+                             ret,
+                             get_fe_status_comment(ret));
                         lastret = ret;
                         }
                      if (timeout_expired(&timeout) || flags.emulate) break;
@@ -2990,8 +3011,9 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                        info("\n");
                     continue;
                     }
-                 verbose("\n        (%.3fsec) %s\n", elapsed(&meas_start, &meas_stop), 
-                         (ret & FE_HAS_LOCK) ? "lock" : "signal");
+                 verbose("\n        (%.3fsec) %s %s\n", elapsed(&meas_start, &meas_stop), 
+                         (ret & FE_HAS_LOCK) ? "lock" : "signal",
+                         get_fe_status_comment(ret));
 
                  if ((test.type == SCAN_TERRESTRIAL) && (delsys != fe_get_delsys(frontend_fd, NULL))) {
                     verbose("wrong delsys: skip over.\n");                    // cxd2820r: T <-> T2
@@ -4221,6 +4243,7 @@ int main(int argc, char ** argv) {
      if (adapter < DVB_ADAPTER_AUTO) {
         snprintf(frontend_devname, sizeof(frontend_devname), "/dev/dvb/adapter%i/frontend%i", adapter, frontend);
         info("Using %s frontend (adapter %s)\n", scantype_to_text(scantype), frontend_devname);
+        info("Device path: %s\n", frontend_devname);
         }
      }
   snprintf(frontend_devname, sizeof(frontend_devname), "/dev/dvb/adapter%i/frontend%i", adapter, frontend);

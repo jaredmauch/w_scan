@@ -1,3 +1,25 @@
 config.guess
 config.h.in~
 config.sub
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+w_scan
+Makefile
+config.h
+config.log
+config.status
+stamp-h1
+configure~
+
+# Dependencies
+.deps/
+autom4te.cache/
+
+# Generated files
+*.Po
+*.Tpo
