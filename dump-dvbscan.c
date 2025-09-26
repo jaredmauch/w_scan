@@ -46,7 +46,9 @@ void dvbscan_dump_tuningdata (  FILE *f,
                                 struct transponder *t,
                                 uint16_t index,
                                 struct w_scan_flags * flags,
-                                int total_frequencies) {
+                                int total_frequencies,
+                                int locked_frequencies,
+                                pList all_transponders) {
         const char * network_name = t->network_name; 
         if (index == 0) {
                 struct tm * ti;
@@ -74,8 +76,27 @@ void dvbscan_dump_tuningdata (  FILE *f,
                 fprintf (f, "# date (yyyy-mm-dd)    : %.04d-%.02d-%.02d\n",
                                         ti->tm_year + 1900, ti->tm_mon + 1, ti->tm_mday);
                 fprintf (f, "# frequencies detected : %d\n", total_frequencies);
+                fprintf (f, "# frequencies locked   : %d\n", locked_frequencies);
                 fprintf (f, "# provided by (opt)    : <your name or email here>\n");
                 fprintf (f, "#\n");
+                fprintf (f, "# Frequencies without services (commented out):\n");
+                
+                // Output frequencies without services in commented form
+                if (all_transponders != NULL) {
+                        struct transponder * tp;
+                        for(tp = all_transponders->first; tp; tp = tp->next) {
+                                if ((tp->source >> 8) == 64) { // ATSC frequencies
+                                        // Check if this frequency has no services
+                                        if (tp->services == NULL || tp->services->count == 0) {
+                                                fprintf(f, "# A %09d     8VSB\t# Signal: %s (%.1f dBm), SNR: %.1f dB, No services found\n",
+                                                        tp->frequency,
+                                                        tp->signal_quality ? tp->signal_quality : "Unknown",
+                                                        tp->signal_strength_dbm,
+                                                        tp->snr_db);
+                                                }
+                                        }
+                                }
+                        }
 
                 switch (flags->scantype) {
                         case SCAN_TERRCABLE_ATSC:

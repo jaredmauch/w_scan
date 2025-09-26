@@ -190,6 +190,7 @@ struct transponder * alloc_transponder(uint32_t frequency, unsigned delsys, uint
   t->uncorrected_blocks = 0;
   t->signal_quality = NULL;
   t->video_resolution = NULL;
+  t->initial_scan_locked = false;
 
   switch(delsys) {
      case SYS_DVBT:
@@ -2340,6 +2341,27 @@ uint16_t lock_timeout(uint8_t delsys) {
      }
 }
 
+// Extended lock timeout for service scanning (secondary scan)
+// Since we know the signal exists, we can wait longer for stable lock
+uint16_t service_scan_lock_timeout(uint8_t delsys) {
+  switch(delsys) {
+     case SYS_DVBT:
+     case SYS_DVBT2:
+        return 8000;  // 2x longer for service scan
+     case SYS_DVBS:
+     case SYS_DVBS2:
+        return 6000;  // 2x longer for service scan
+     case SYS_DVBC_ANNEX_A:
+     case SYS_DVBC_ANNEX_B:
+     #if (SYS_DVBC_ANNEX_A != SYS_DVBC_ANNEX_C)
+     case SYS_DVBC_ANNEX_C:
+     #endif
+        return 6000;  // 2x longer for service scan
+     default:
+        return 15000; // Nearly 2x longer for ATSC service scan
+     }
+}
+
 static uint16_t check_frontend(int fd, int verbose);
 
 static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v) {
@@ -2347,6 +2369,7 @@ static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v)
   int res;
   struct timespec timeout, meas_start, meas_stop;
   uint8_t delsys = t->delsys;
+  int is_service_scan = (v > 0); // Service scan when verbose > 0
  
   if ((verbosity >= 1) && (v > 0)) {
      char * buf = (char *) malloc(128); // paranoia, max = 52
@@ -2382,7 +2405,9 @@ static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v)
      }
 
   //now, we should get also lock.
-  set_timeout(lock_timeout(delsys) * flags.tuning_timeout, &timeout);  // N msec * {1,2,3}
+  // Use extended timeout for service scanning since we know the signal exists
+  uint16_t lock_timeout_val = is_service_scan ? service_scan_lock_timeout(delsys) : lock_timeout(delsys);
+  set_timeout(lock_timeout_val * flags.tuning_timeout, &timeout);  // N msec * {1,2,3}
   while((ret & FE_HAS_LOCK) == 0) {
      ret = check_frontend(frontend_fd,0);
      if (ret != lastret) {
@@ -2881,7 +2906,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                  get_time(&meas_start);
                  set_timeout(time2carrier * flags.tuning_timeout, &timeout);  // N msec * {1,2,3}
                  if (!flags.emulate)
-                    usleep(100000);
+                    usleep(50000); // Reduced from 100ms to 50ms for faster initial scan
                  ret = 0; lastret = ret;
 
                  // look for some signal.
@@ -2933,16 +2958,19 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                     }
                  verbose("\n        (%.3fsec) %s\n", elapsed(&meas_start, &meas_stop), 
                          (ret & FE_HAS_LOCK) ? "lock" : "signal");
+                 
+                 // Set initial scan lock status
+                 t->initial_scan_locked = (ret & FE_HAS_LOCK) != 0;
 
                  if ((test.type == SCAN_TERRESTRIAL) && (delsys != fe_get_delsys(frontend_fd, NULL))) {
                     verbose("wrong delsys: skip over.\n");                    // cxd2820r: T <-> T2
                     continue;
                     }
 
-                 // Add stabilization period after lock to ensure frontend is fully tuned
+                 // Add brief stabilization period after lock to ensure frontend is fully tuned
                  if (!flags.emulate) {
                      verbose("        stabilizing frontend...\n");
-                     usleep(300000); // 300ms stabilization period for ATSC
+                     usleep(150000); // 150ms stabilization period for ATSC (reduced for faster scan)
                      
                      // Verify signal is still present after stabilization
                      ret = check_frontend(frontend_fd, 1); // Use verbose=1 to show final lock status
@@ -3257,17 +3285,22 @@ static void dump_lists(int adapter, int frontend) {
 
   // Count frequencies for ATSC output
   int frequency_count = 0;
+  int locked_frequency_count = 0;
   if (output_format == OUTPUT_DVBSCAN_TUNING_DATA) {
      for(t = scanned_transponders->first; t; t = t->next) {
         if ((t->source >> 8) == 64) {
            frequency_count++;
+           // Check if this frequency achieved lock during initial scan
+           if (t->initial_scan_locked) {
+              locked_frequency_count++;
+              }
            }
         }
      }
 
   for(t = scanned_transponders->first; t; t = t->next) {
      if (output_format == OUTPUT_DVBSCAN_TUNING_DATA && ((t->source >> 8) == 64)) {
-        dvbscan_dump_tuningdata(dest, t, index++, &flags, frequency_count);
+        dvbscan_dump_tuningdata(dest, t, index++, &flags, frequency_count, locked_frequency_count, scanned_transponders);
         continue;
         }                        
      for(s = (t->services)->first; s; s = s->next) {
