@@ -776,11 +776,15 @@ double signal_strength_to_dbm(uint16_t signal_raw) {
     /* Convert percentage to approximate dBm range */
     /* 0% = -100dBm (no signal), 100% = -20dBm (excellent) */
     return -100.0 + (signal_raw * 80.0) / 100.0;
-  } else {
+  } else if (signal_raw < 65535) {
     /* Large values suggest raw scale (0-65535) */
     /* Convert from 0-65535 scale to approximate dBm range */
     /* Typical DVB range: -100dBm (no signal) to -20dBm (excellent) */
     return -100.0 + (signal_raw * 80.0) / 65535.0;
+  } else {
+    /* Very large values might be in different units or invalid */
+    /* Return a conservative estimate */
+    return -50.0; // Assume strong signal if value is very large
   }
 }
 
@@ -839,6 +843,9 @@ const char * get_signal_quality(double signal_dbm, double snr_db) {
 
 /**
  * Display comprehensive signal statistics in dvb-fe-tool style
+ * WARNING: Signal strength and C/N values are calculated using heuristics
+ * and may not be accurate for all hardware/driver combinations.
+ * Raw values are shown in brackets for verification.
  * @param signal_raw Raw signal strength value
  * @param snr_raw Raw SNR value
  * @param ber Raw BER value
@@ -872,7 +879,7 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
     ber_display = ber_str;
   }
   
-  // Display with accurate status description
-  info("%-8s (0x%02x) Quality= %s Signal= %.1f dBm C/N= %.1f dB UCB= %u BER= %s\n",
-       status_desc, status & 0x1F, quality, signal_dbm, snr_db, uncorrected_blocks, ber_display);
+  // Display with accurate status description and raw values for debugging
+  info("%-8s (0x%02x) Quality= %s Signal= %.1f dBm C/N= %.1f dB UCB= %u BER= %s [Raw: Sig=%u SNR=%u]\n",
+       status_desc, status & 0x1F, quality, signal_dbm, snr_db, uncorrected_blocks, ber_display, signal_raw, snr_raw);
 }
