@@ -802,14 +802,23 @@ double signal_strength_to_dbm_with_scale(uint16_t signal_raw, int fd) {
   switch(scale) {
     case 1: // Likely decibel scale - small values
       /* Small values suggest direct dBm reporting (TBS cards with dbm=1) */
-      return -signal_raw;
+      /* Note: Some drivers report direct dBm, others report 0.001 dBm units */
+      if (signal_raw < 1000) {
+        /* Very small values likely direct dBm */
+        return -signal_raw;
+      } else {
+        /* Larger values likely 0.001 dBm units (milli-dBm) */
+        return signal_raw / 1000.0;
+      }
       
     case 2: // Likely relative scale
       if (signal_raw <= 100) {
         /* Values 0-100 suggest percentage scale */
+        /* Convert percentage to dBm range: 0% = -100dBm, 100% = -20dBm */
         return -100.0 + (signal_raw * 80.0) / 100.0;
       } else {
         /* Large values suggest raw scale (0-65535) */
+        /* Convert to dBm range: 0 = -100dBm, 65535 = -20dBm */
         return -100.0 + (signal_raw * 80.0) / 65535.0;
       }
       
@@ -869,14 +878,23 @@ double snr_to_db_with_scale(uint16_t snr_raw, int fd) {
   switch(scale) {
     case 1: // Likely decibel scale - small values
       /* Small values suggest 0.1dB EsN0 format (TBS cards with esno=1) */
-      return snr_raw / 10.0;
+      /* Note: Some drivers report 0.1dB units, others report 0.001 dB units */
+      if (snr_raw < 1000) {
+        /* Very small values likely 0.1dB units */
+        return snr_raw / 10.0;
+      } else {
+        /* Larger values likely 0.001 dB units (milli-dB) */
+        return snr_raw / 1000.0;
+      }
       
     case 2: // Likely relative scale
       if (snr_raw <= 100) {
         /* Values 0-100 suggest percentage scale */
+        /* Convert percentage to dB range: 0% = 0dB, 100% = 30dB */
         return (snr_raw * 30.0) / 100.0;
       } else {
         /* Large values suggest raw scale (0-65535) */
+        /* Convert to dB range: 0 = 0dB, 65535 = 30dB */
         return (snr_raw * 30.0) / 65535.0;
       }
       
