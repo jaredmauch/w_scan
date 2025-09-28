@@ -850,7 +850,19 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
   double snr_db = snr_to_db(snr_raw);
   const char * quality = get_signal_quality(signal_dbm, snr_db);
   
-  // Display in dvb-fe-tool style format
-  info("Lock   (0x%02x) Quality= %s Signal= %.1f dBm C/N= %.1f dB UCB= %u BER= %u\n",
-       status & 0x1F, quality, signal_dbm, snr_db, uncorrected_blocks, ber);
+  // Determine accurate status description based on frontend flags
+  const char * status_desc;
+  if (status & FE_HAS_LOCK) {
+    status_desc = "Lock";
+  } else if (status & FE_HAS_CARRIER) {
+    status_desc = "Carrier";
+  } else if (status & FE_HAS_SIGNAL) {
+    status_desc = "Signal";
+  } else {
+    status_desc = "NoSignal";
+  }
+  
+  // Display with accurate status description
+  info("%-8s (0x%02x) Quality= %s Signal= %.1f dBm C/N= %.1f dB UCB= %u BER= %u\n",
+       status_desc, status & 0x1F, quality, signal_dbm, snr_db, uncorrected_blocks, ber);
 }

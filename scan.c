@@ -2398,13 +2398,13 @@ static uint16_t check_frontend(int fd, int verbose);
  */
 static const char * get_fe_status_comment(uint16_t status) {
   if (status & FE_HAS_LOCK) {
-    return "(SIGNAL+CARRIER+LOCK)";
+    return "(SIGNAL+CARRIER+LOCK - Full synchronization achieved)";
   } else if (status & FE_HAS_CARRIER) {
-    return "(SIGNAL+CARRIER)";
+    return "(SIGNAL+CARRIER - Signal detected but no lock)";
   } else if (status & FE_HAS_SIGNAL) {
-    return "(SIGNAL)";
+    return "(SIGNAL - Above noise level but no carrier)";
   } else {
-    return "(NO_SIGNAL)";
+    return "(NO_SIGNAL - Below noise threshold)";
   }
 }
 
@@ -3012,7 +3012,9 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                     continue;
                     }
                  verbose("\n        (%.3fsec) %s %s\n", elapsed(&meas_start, &meas_stop), 
-                         (ret & FE_HAS_LOCK) ? "lock" : "signal",
+                         (ret & FE_HAS_LOCK) ? "LOCK" : 
+                         (ret & FE_HAS_CARRIER) ? "CARRIER" : 
+                         (ret & FE_HAS_SIGNAL) ? "SIGNAL" : "NO_SIGNAL",
                          get_fe_status_comment(ret));
 
                  if ((test.type == SCAN_TERRESTRIAL) && (delsys != fe_get_delsys(frontend_fd, NULL))) {
