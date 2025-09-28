@@ -862,7 +862,17 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
     status_desc = "NoSignal";
   }
   
+  // Handle BER display - common "not supported" values
+  const char * ber_display;
+  if (ber == 0xFFFFFFFF || ber == 0xFFFFFFFE || ber == 0) {
+    ber_display = "N/A";
+  } else {
+    static char ber_str[32];
+    snprintf(ber_str, sizeof(ber_str), "%u", ber);
+    ber_display = ber_str;
+  }
+  
   // Display with accurate status description
-  info("%-8s (0x%02x) Quality= %s Signal= %.1f dBm C/N= %.1f dB UCB= %u BER= %u\n",
-       status_desc, status & 0x1F, quality, signal_dbm, snr_db, uncorrected_blocks, ber);
+  info("%-8s (0x%02x) Quality= %s Signal= %.1f dBm C/N= %.1f dB UCB= %u BER= %s\n",
+       status_desc, status & 0x1F, quality, signal_dbm, snr_db, uncorrected_blocks, ber_display);
 }
