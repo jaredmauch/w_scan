@@ -98,9 +98,12 @@ const char * interleaver_name(int i); /* somehow missing. */
 
 /* Signal strength and SNR conversion functions */
 double signal_strength_to_dbm(uint16_t signal_raw);
+double signal_strength_to_dbm_with_scale(uint16_t signal_raw, int fd);
 double snr_to_db(uint16_t snr_raw);
+double snr_to_db_with_scale(uint16_t snr_raw, int fd);
 const char * get_signal_quality(double signal_dbm, double snr_db);
 void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, uint32_t uncorrected_blocks, fe_status_t status);
+void display_signal_stats_with_scale(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, uint32_t uncorrected_blocks, fe_status_t status, int fd);
 
 /*******************************************************************************
 /* double linked list.

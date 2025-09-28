@@ -753,8 +753,82 @@ bool fuzzy_section(void * s) {
  ******************************************************************************/
 
 /**
- * Convert DVB signal strength value to dBm
- * Handles multiple DVB driver formats automatically based on value range
+ * Detect signal strength scale using heuristics (fallback method)
+ * @param signal_raw Raw signal strength value
+ * @return Scale type: 0=unknown, 1=decibel, 2=relative, 3=not_available
+ */
+static int detect_signal_scale_heuristic(uint16_t signal_raw) {
+  if (signal_raw == 0) {
+    return 3; // Not available
+  } else if (signal_raw < 1000) {
+    return 1; // Likely decibel scale (small values)
+  } else if (signal_raw <= 100) {
+    return 2; // Likely percentage scale (0-100)
+  } else {
+    return 2; // Likely relative scale (0-65535) - all other values
+  }
+}
+
+/**
+ * Detect SNR scale using heuristics (fallback method)
+ * @param snr_raw Raw SNR value
+ * @return Scale type: 0=unknown, 1=decibel, 2=relative, 3=not_available
+ */
+static int detect_snr_scale_heuristic(uint16_t snr_raw) {
+  if (snr_raw == 0) {
+    return 3; // Not available
+  } else if (snr_raw < 1000) {
+    return 1; // Likely decibel scale (small values)
+  } else if (snr_raw <= 100) {
+    return 2; // Likely percentage scale (0-100)
+  } else {
+    return 2; // Likely relative scale (0-65535) - all other values
+  }
+}
+
+/**
+ * Convert DVB signal strength value to dBm with proper scale detection
+ * @param signal_raw Raw signal strength value from FE_READ_SIGNAL_STRENGTH
+ * @param fd Frontend file descriptor for scale detection
+ * @return Signal strength in dBm
+ */
+double signal_strength_to_dbm_with_scale(uint16_t signal_raw, int fd) {
+  if (signal_raw == 0) {
+    return -100.0; // No signal
+  }
+  
+  int scale = detect_signal_scale_heuristic(signal_raw);
+  
+  switch(scale) {
+    case 1: // Likely decibel scale - small values
+      /* Small values suggest direct dBm reporting (TBS cards with dbm=1) */
+      return -signal_raw;
+      
+    case 2: // Likely relative scale
+      if (signal_raw <= 100) {
+        /* Values 0-100 suggest percentage scale */
+        return -100.0 + (signal_raw * 80.0) / 100.0;
+      } else {
+        /* Large values suggest raw scale (0-65535) */
+        return -100.0 + (signal_raw * 80.0) / 65535.0;
+      }
+      
+    case 3: // Not available
+      return -999.0; // Indicate not available
+      
+    default: // Unknown scale - fall back to original heuristics
+      if (signal_raw < 1000) {
+        return -signal_raw;
+      } else if (signal_raw <= 100) {
+        return -100.0 + (signal_raw * 80.0) / 100.0;
+      } else {
+        return -100.0 + (signal_raw * 80.0) / 65535.0;
+      }
+  }
+}
+
+/**
+ * Convert DVB signal strength value to dBm (legacy function for compatibility)
  * @param signal_raw Raw signal strength value from FE_READ_SIGNAL_STRENGTH
  * @return Signal strength in dBm
  */
@@ -763,34 +837,65 @@ double signal_strength_to_dbm(uint16_t signal_raw) {
     return -100.0; // No signal
   }
   
-  /* Check if the frontend supports dBm reporting */
-  /* This should be checked using FE_CAP_DBM in fe_caps, but for now */
-  /* we'll use heuristics based on the value range */
-  
+  /* Fall back to heuristics when scale detection is not available */
   if (signal_raw < 1000) {
     /* Small values suggest direct dBm reporting (TBS cards with dbm=1) */
-    /* A value of 42 means -42dBm */
     return -signal_raw;
   } else if (signal_raw <= 100) {
     /* Values 0-100 suggest percentage scale */
-    /* Convert percentage to approximate dBm range */
-    /* 0% = -100dBm (no signal), 100% = -20dBm (excellent) */
     return -100.0 + (signal_raw * 80.0) / 100.0;
   } else if (signal_raw < 65535) {
     /* Large values suggest raw scale (0-65535) */
-    /* Convert from 0-65535 scale to approximate dBm range */
-    /* Typical DVB range: -100dBm (no signal) to -20dBm (excellent) */
     return -100.0 + (signal_raw * 80.0) / 65535.0;
   } else {
     /* Very large values might be in different units or invalid */
-    /* Return a conservative estimate */
     return -50.0; // Assume strong signal if value is very large
   }
 }
 
 /**
- * Convert DVB SNR value to dB
- * Handles multiple DVB driver formats automatically based on value range
+ * Convert DVB SNR value to dB with proper scale detection
+ * @param snr_raw Raw SNR value from FE_READ_SNR
+ * @param fd Frontend file descriptor for scale detection
+ * @return SNR in dB
+ */
+double snr_to_db_with_scale(uint16_t snr_raw, int fd) {
+  if (snr_raw == 0) {
+    return 0.0; // No signal
+  }
+  
+  int scale = detect_snr_scale_heuristic(snr_raw);
+  
+  switch(scale) {
+    case 1: // Likely decibel scale - small values
+      /* Small values suggest 0.1dB EsN0 format (TBS cards with esno=1) */
+      return snr_raw / 10.0;
+      
+    case 2: // Likely relative scale
+      if (snr_raw <= 100) {
+        /* Values 0-100 suggest percentage scale */
+        return (snr_raw * 30.0) / 100.0;
+      } else {
+        /* Large values suggest raw scale (0-65535) */
+        return (snr_raw * 30.0) / 65535.0;
+      }
+      
+    case 3: // Not available
+      return -999.0; // Indicate not available
+      
+    default: // Unknown scale - fall back to original heuristics
+      if (snr_raw < 1000) {
+        return snr_raw / 10.0;
+      } else if (snr_raw <= 100) {
+        return (snr_raw * 30.0) / 100.0;
+      } else {
+        return (snr_raw * 30.0) / 65535.0;
+      }
+  }
+}
+
+/**
+ * Convert DVB SNR value to dB (legacy function for compatibility)
  * @param snr_raw Raw SNR value from FE_READ_SNR
  * @return SNR in dB
  */
@@ -799,21 +904,15 @@ double snr_to_db(uint16_t snr_raw) {
     return 0.0; // No signal
   }
   
-  /* Check the SNR value range to determine the correct conversion */
+  /* Fall back to heuristics when scale detection is not available */
   if (snr_raw < 1000) {
     /* Small values suggest 0.1dB EsN0 format (TBS cards with esno=1) */
-    /* A value of 100 means 10dB Es/N0 */
-    /* Convert from 0.1dB units to dB */
     return snr_raw / 10.0;
   } else if (snr_raw <= 100) {
     /* Values 0-100 suggest percentage scale */
-    /* Convert percentage to approximate dB range */
-    /* 0% = 0dB, 100% = 30dB */
     return (snr_raw * 30.0) / 100.0;
   } else {
     /* Large values suggest raw scale (0-65535) */
-    /* Convert from 0-65535 scale to approximate dB range */
-    /* Map to 0-30dB range */
     return (snr_raw * 30.0) / 65535.0;
   }
 }
@@ -882,4 +981,52 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
   // Display with accurate status description and raw values for debugging
   info("%-8s (0x%02x) Quality= %s Signal= %.1f dBm C/N= %.1f dB UCB= %u BER= %s [Raw: Sig=%u SNR=%u]\n",
        status_desc, status & 0x1F, quality, signal_dbm, snr_db, uncorrected_blocks, ber_display, signal_raw, snr_raw);
+}
+
+/**
+ * Display signal statistics with proper scale detection
+ * @param signal_raw Raw signal strength value
+ * @param snr_raw Raw SNR value
+ * @param ber Raw BER value
+ * @param uncorrected_blocks Raw uncorrected blocks value
+ * @param status Frontend status flags
+ * @param fd Frontend file descriptor for scale detection
+ */
+void display_signal_stats_with_scale(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, uint32_t uncorrected_blocks, fe_status_t status, int fd) {
+  double signal_dbm = signal_strength_to_dbm_with_scale(signal_raw, fd);
+  double snr_db = snr_to_db_with_scale(snr_raw, fd);
+  const char * quality = get_signal_quality(signal_dbm, snr_db);
+  
+  // Determine accurate status description based on frontend flags
+  const char * status_desc;
+  if (status & FE_HAS_LOCK) {
+    status_desc = "Lock";
+  } else if (status & FE_HAS_CARRIER) {
+    status_desc = "Carrier";
+  } else if (status & FE_HAS_SIGNAL) {
+    status_desc = "Signal";
+  } else {
+    status_desc = "NoSignal";
+  }
+  
+  // Handle BER display - common "not supported" values
+  const char * ber_display;
+  if (ber == 0xFFFFFFFF || ber == 0xFFFFFFFE || ber == 0) {
+    ber_display = "N/A";
+  } else {
+    static char ber_str[32];
+    snprintf(ber_str, sizeof(ber_str), "%u", ber);
+    ber_display = ber_str;
+  }
+  
+  // Get scale information for debug output
+  int signal_scale = detect_signal_scale_heuristic(signal_raw);
+  int snr_scale = detect_snr_scale_heuristic(snr_raw);
+  const char * signal_scale_name = (signal_scale == 1) ? "dBm" : (signal_scale == 2) ? "rel" : (signal_scale == 3) ? "N/A" : "unk";
+  const char * snr_scale_name = (snr_scale == 1) ? "dB" : (snr_scale == 2) ? "rel" : (snr_scale == 3) ? "N/A" : "unk";
+  
+  // Display with accurate status description, scale info, and raw values
+  info("%-8s (0x%02x) Quality= %s Signal= %.1f dBm C/N= %.1f dB UCB= %u BER= %s [Raw: Sig=%u(%s) SNR=%u(%s)]\n",
+       status_desc, status & 0x1F, quality, signal_dbm, snr_db, uncorrected_blocks, ber_display, 
+       signal_raw, signal_scale_name, snr_raw, snr_scale_name);
 }
