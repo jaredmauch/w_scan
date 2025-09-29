@@ -90,24 +90,6 @@ void dvbscan_dump_tuningdata (  FILE *f,
                 fprintf (f, "# frequencies locked   : %d\n", locked_frequencies);
                 fprintf (f, "# provided by (opt)    : <your name or email here>\n");
                 fprintf (f, "#\n");
-                fprintf (f, "# Frequencies without services (commented out):\n");
-                
-                // Output frequencies without services in commented form
-                if (all_transponders != NULL) {
-                        struct transponder * tp;
-                        for(tp = all_transponders->first; tp; tp = tp->next) {
-                                if (tp->delsys == SYS_ATSC) { // ATSC frequencies
-                                        // Check if this frequency has no services
-                                        if (tp->services == NULL || tp->services->count == 0) {
-                                                fprintf(f, "# A %09d     8VSB\t# Signal: %s (%.1f dBm), SNR: %.1f dB, No services found\n",
-                                                        tp->frequency,
-                                                        tp->signal_quality ? tp->signal_quality : "Unknown",
-                                                        tp->signal_strength_dbm,
-                                                        tp->snr_db);
-                                                }
-                                        }
-                                }
-                        }
                 
                 // Output frontend status flags for all frequencies that had any signal
                 fprintf (f, "#\n");
