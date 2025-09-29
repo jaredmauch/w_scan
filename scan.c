@@ -3172,6 +3172,9 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                     continue;
                     }
 
+                 // Capture the original frontend status before stabilization
+                 uint16_t original_frontend_status = ret;
+
                  // Add brief stabilization period after lock to ensure frontend is fully tuned
                  if (!flags.emulate) {
                      verbose("        stabilizing frontend...\n");
@@ -3193,8 +3196,9 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                  t->network_name=NULL;
                  
                  // Set initial scan lock status and capture frontend status flags
-                 t->initial_scan_locked = (ret & FE_HAS_LOCK) != 0;
-                 t->frontend_status = ret;
+                 // Use the original status detected before stabilization
+                 t->initial_scan_locked = (original_frontend_status & FE_HAS_LOCK) != 0;
+                 t->frontend_status = original_frontend_status;
                  
                  init_tp(t);
 
