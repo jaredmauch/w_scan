@@ -3024,8 +3024,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                  // For ATSC, accept signals with FE_HAS_SIGNAL | FE_HAS_CARRIER even without full lock
                  // Some ATSC signals may not achieve FE_HAS_LOCK but are still usable
                  if ((ret & (FE_HAS_SIGNAL | FE_HAS_CARRIER)) == 0) {
-                    if (sr_parm == dvbc_symbolrate_max)
-                       info("\n");
+                    info("\n"); // Always print newline when no signal detected
                     continue;
                     }
                  verbose("\n        (%.3fsec) %s %s\n", elapsed(&meas_start, &meas_stop), 

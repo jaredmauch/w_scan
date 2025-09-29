@@ -982,6 +982,13 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
     signal_percent = (signal_raw * 100.0) / 65535.0;
   }
   
+  // Check for potential signal inversion - if signal is very high but status shows no signal
+  // This might indicate the signal strength is inverted (higher values = weaker signal)
+  if (signal_percent > 80.0 && (status & (FE_HAS_SIGNAL | FE_HAS_CARRIER)) == 0) {
+    // Signal might be inverted - invert the percentage
+    signal_percent = 100.0 - signal_percent;
+  }
+  
   // Convert SNR to percentage (femon-like approach)
   double snr_percent;
   if (snr_raw == 0) {
@@ -994,15 +1001,15 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
     snr_percent = (snr_raw * 100.0) / 65535.0;
   }
   
-  // Calculate quality based on percentage values
+  // Calculate quality based on percentage values - use AND logic for better assessment
   const char * quality;
-  if (signal_percent < 10.0 || snr_percent < 10.0) {
+  if (signal_percent < 10.0 && snr_percent < 10.0) {
     quality = "Poor";
-  } else if (signal_percent < 30.0 || snr_percent < 30.0) {
+  } else if (signal_percent < 30.0 && snr_percent < 30.0) {
     quality = "Fair";
-  } else if (signal_percent < 50.0 || snr_percent < 50.0) {
+  } else if (signal_percent < 50.0 && snr_percent < 50.0) {
     quality = "Good";
-  } else if (signal_percent < 80.0 || snr_percent < 80.0) {
+  } else if (signal_percent < 80.0 && snr_percent < 80.0) {
     quality = "Very Good";
   } else {
     quality = "Excellent";
