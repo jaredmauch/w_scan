@@ -3004,6 +3004,23 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      if (timeout_expired(&timeout) || flags.emulate) break;
                      usleep(50000);
                      }
+                 
+                 // Always display signal statistics for debugging, even if no signal detected
+                 if (!flags.emulate) {
+                     uint16_t signal_raw, snr_raw;
+                     uint32_t ber, uncorrected_blocks;
+                     fe_status_t status;
+                     
+                     ioctl(frontend_fd, FE_READ_STATUS, &status);
+                     ioctl(frontend_fd, FE_READ_SIGNAL_STRENGTH, &signal_raw);
+                     ioctl(frontend_fd, FE_READ_SNR, &snr_raw);
+                     ioctl(frontend_fd, FE_READ_BER, &ber);
+                     ioctl(frontend_fd, FE_READ_UNCORRECTED_BLOCKS, &uncorrected_blocks);
+                     
+                     // Display signal statistics for debugging
+                     display_signal_stats(signal_raw, snr_raw, ber, uncorrected_blocks, status);
+                 }
+                 
                  // For ATSC, accept signals with FE_HAS_SIGNAL | FE_HAS_CARRIER even without full lock
                  // Some ATSC signals may not achieve FE_HAS_LOCK but are still usable
                  if ((ret & (FE_HAS_SIGNAL | FE_HAS_CARRIER)) == 0) {
