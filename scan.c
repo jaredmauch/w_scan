@@ -2540,6 +2540,9 @@ static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v)
 static int tune_to_transponder(int frontend_fd, struct transponder * t) {
   // No need to move transponders between lists - we use a single master list
   // The transponder is already in master_transponders
+  
+  // Set current_tp so services are added to the correct transponder
+  current_tp = t;
 
   if (t->type != flags.scantype) { 
      t->last_tuning_failed = 1;  // ignore cable descriptors in sat NIT and vice versa
