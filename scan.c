@@ -3114,7 +3114,6 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      t->video_resolution = NULL; // Will be set later when services are parsed
                      
                      // Display final stabilized signal statistics
-                     info("\n");
                      display_signal_stats(signal_raw, snr_raw, ber, uncorrected_blocks, status);
                  }
                  
