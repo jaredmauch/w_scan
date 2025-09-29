@@ -1001,18 +1001,56 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
     snr_percent = (snr_raw * 100.0) / 65535.0;
   }
   
-  // Calculate quality based on percentage values - use AND logic for better assessment
+  // Calculate quality based on percentage values AND frontend status
   const char * quality;
-  if (signal_percent < 10.0 && snr_percent < 10.0) {
+  
+  // First check frontend status - this overrides signal strength
+  if (status & FE_HAS_LOCK) {
+    // Full lock achieved - use signal metrics for quality
+    if (signal_percent < 10.0 || snr_percent < 10.0) {
+      quality = "Poor";
+    } else if (signal_percent < 30.0 || snr_percent < 30.0) {
+      quality = "Fair";
+    } else if (signal_percent < 50.0 || snr_percent < 50.0) {
+      quality = "Good";
+    } else if (signal_percent < 80.0 || snr_percent < 80.0) {
+      quality = "Very Good";
+    } else {
+      quality = "Excellent";
+    }
+  } else if (status & FE_HAS_SYNC) {
+    // Sync achieved but no full lock - good quality but not excellent
+    if (signal_percent < 20.0 || snr_percent < 20.0) {
+      quality = "Poor";
+    } else if (signal_percent < 40.0 || snr_percent < 40.0) {
+      quality = "Fair";
+    } else if (signal_percent < 60.0 || snr_percent < 60.0) {
+      quality = "Good";
+    } else {
+      quality = "Very Good";
+    }
+  } else if (status & FE_HAS_VITERBI) {
+    // FEC stable but no sync - moderate quality
+    if (signal_percent < 30.0 || snr_percent < 30.0) {
+      quality = "Poor";
+    } else if (signal_percent < 50.0 || snr_percent < 50.0) {
+      quality = "Fair";
+    } else {
+      quality = "Good";
+    }
+  } else if (status & FE_HAS_CARRIER) {
+    // Carrier detected but no FEC - limited quality
+    if (signal_percent < 40.0 || snr_percent < 40.0) {
+      quality = "Poor";
+    } else {
+      quality = "Fair";
+    }
+  } else if (status & FE_HAS_SIGNAL) {
+    // Only signal above noise - poor quality
     quality = "Poor";
-  } else if (signal_percent < 30.0 && snr_percent < 30.0) {
-    quality = "Fair";
-  } else if (signal_percent < 50.0 && snr_percent < 50.0) {
-    quality = "Good";
-  } else if (signal_percent < 80.0 && snr_percent < 80.0) {
-    quality = "Very Good";
   } else {
-    quality = "Excellent";
+    // No signal detected
+    quality = "Poor";
   }
   
   // Determine accurate status description based on frontend flags
