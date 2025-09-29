@@ -3025,6 +3025,10 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                              get_fe_status_comment(ret));
                         lastret = ret;
                         }
+                     // For initial scan, move on once we have any signal, lock, or carrier
+                     if (ret & (FE_HAS_SIGNAL | FE_HAS_LOCK | FE_HAS_CARRIER)) {
+                        break;
+                        }
                      if (timeout_expired(&timeout) || flags.emulate) break;
                      usleep(50000);
                      }
