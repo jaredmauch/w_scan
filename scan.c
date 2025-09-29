@@ -2397,10 +2397,18 @@ static uint16_t check_frontend(int fd, int verbose);
  * @return Descriptive comment string
  */
 static const char * get_fe_status_comment(uint16_t status) {
-  if (status & FE_HAS_LOCK) {
-    return "(SIGNAL+CARRIER+LOCK - Full synchronization achieved)";
+  if (status & FE_REINIT) {
+    return "(REINIT - Frontend reinitialized, DiSEqC/tone reset needed)";
+  } else if (status & FE_TIMEDOUT) {
+    return "(TIMEOUT - No lock achieved within timeout period)";
+  } else if (status & FE_HAS_LOCK) {
+    return "(SIGNAL+CARRIER+VITERBI+SYNC+LOCK - Full synchronization achieved)";
+  } else if (status & FE_HAS_SYNC) {
+    return "(SIGNAL+CARRIER+VITERBI+SYNC - Sync bytes found, FEC stable)";
+  } else if (status & FE_HAS_VITERBI) {
+    return "(SIGNAL+CARRIER+VITERBI - FEC stable, BER meaningful)";
   } else if (status & FE_HAS_CARRIER) {
-    return "(SIGNAL+CARRIER - Signal detected but no lock)";
+    return "(SIGNAL+CARRIER - Signal detected but no FEC lock)";
   } else if (status & FE_HAS_SIGNAL) {
     return "(SIGNAL - Above noise level but no carrier)";
   } else {
@@ -2437,11 +2445,15 @@ static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v)
      ret = check_frontend(frontend_fd,0);
      if (ret != lastret) {
         get_time(&meas_stop);
-        verbose(" (%.3fsec): %s%s%s %s\n",
+        verbose(" (%.3fsec): %s%s%s%s%s%s%s %s\n",
               elapsed(&meas_start, &meas_stop),
               ret & FE_HAS_SIGNAL ?"S":"",
               ret & FE_HAS_CARRIER?"C":"",
+              ret & FE_HAS_VITERBI?"V":"",
+              ret & FE_HAS_SYNC?   "Y":"",
               ret & FE_HAS_LOCK?   "L":"",
+              ret & FE_TIMEDOUT?   "T":"",
+              ret & FE_REINIT?     "R":"",
               get_fe_status_comment(ret));
         lastret = ret;
         }
@@ -2457,11 +2469,15 @@ static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v)
      ret = check_frontend(frontend_fd,0);
      if (ret != lastret) {
         get_time(&meas_stop);
-        verbose(" (%.3fsec): %s%s%s %s\n",
+        verbose(" (%.3fsec): %s%s%s%s%s%s%s %s\n",
               elapsed(&meas_start, &meas_stop),
               ret & FE_HAS_SIGNAL ?"S":"",
               ret & FE_HAS_CARRIER?"C":"",
+              ret & FE_HAS_VITERBI?"V":"",
+              ret & FE_HAS_SYNC?   "Y":"",
               ret & FE_HAS_LOCK?   "L":"",
+              ret & FE_TIMEDOUT?   "T":"",
+              ret & FE_REINIT?     "R":"",
               get_fe_status_comment(ret));
         lastret = ret;
         }
@@ -2967,11 +2983,15 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      ret = check_frontend(frontend_fd,0);
                      if (ret != lastret) {
                         get_time(&meas_stop);
-                        verbose("\n        (%.3fsec): %s%s%s (0x%X) %s",
+                        verbose("\n        (%.3fsec): %s%s%s%s%s%s%s (0x%02X) %s",
                              elapsed(&meas_start, &meas_stop),
                              ret & FE_HAS_SIGNAL ?"S":"",
                              ret & FE_HAS_CARRIER?"C":"",
+                             ret & FE_HAS_VITERBI?"V":"",
+                             ret & FE_HAS_SYNC?   "Y":"",
                              ret & FE_HAS_LOCK?   "L":"",
+                             ret & FE_TIMEDOUT?   "T":"",
+                             ret & FE_REINIT?     "R":"",
                              ret,
                              get_fe_status_comment(ret));
                         lastret = ret;
@@ -2992,11 +3012,15 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      ret = check_frontend(frontend_fd,0);
                      if (ret != lastret) {
                         get_time(&meas_stop);
-                        verbose("\n        (%.3fsec): %s%s%s (0x%X) %s",
+                        verbose("\n        (%.3fsec): %s%s%s%s%s%s%s (0x%02X) %s",
                              elapsed(&meas_start, &meas_stop),
                              ret & FE_HAS_SIGNAL ?"S":"",
                              ret & FE_HAS_CARRIER?"C":"",
+                             ret & FE_HAS_VITERBI?"V":"",
+                             ret & FE_HAS_SYNC?   "Y":"",
                              ret & FE_HAS_LOCK?   "L":"",
+                             ret & FE_TIMEDOUT?   "T":"",
+                             ret & FE_REINIT?     "R":"",
                              ret,
                              get_fe_status_comment(ret));
                         lastret = ret;
@@ -3028,7 +3052,11 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                     continue;
                     }
                  verbose("\n        (%.3fsec) %s %s\n", elapsed(&meas_start, &meas_stop), 
+                         (ret & FE_REINIT) ? "REINIT" : 
+                         (ret & FE_TIMEDOUT) ? "TIMEOUT" : 
                          (ret & FE_HAS_LOCK) ? "LOCK" : 
+                         (ret & FE_HAS_SYNC) ? "SYNC" : 
+                         (ret & FE_HAS_VITERBI) ? "VITERBI" : 
                          (ret & FE_HAS_CARRIER) ? "CARRIER" : 
                          (ret & FE_HAS_SIGNAL) ? "SIGNAL" : "NO_SIGNAL",
                          get_fe_status_comment(ret));

@@ -1017,8 +1017,16 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
   
   // Determine accurate status description based on frontend flags
   const char * status_desc;
-  if (status & FE_HAS_LOCK) {
+  if (status & FE_REINIT) {
+    status_desc = "Reinit";
+  } else if (status & FE_TIMEDOUT) {
+    status_desc = "Timeout";
+  } else if (status & FE_HAS_LOCK) {
     status_desc = "Lock";
+  } else if (status & FE_HAS_SYNC) {
+    status_desc = "Sync";
+  } else if (status & FE_HAS_VITERBI) {
+    status_desc = "Viterbi";
   } else if (status & FE_HAS_CARRIER) {
     status_desc = "Carrier";
   } else if (status & FE_HAS_SIGNAL) {
@@ -1027,9 +1035,11 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
     status_desc = "NoSignal";
   }
   
-  // Handle BER display - common "not supported" values
+  // Handle BER display - only meaningful if VITERBI is stable
   const char * ber_display;
-  if (ber == 0xFFFFFFFF || ber == 0xFFFFFFFE || ber == 0) {
+  if (!(status & FE_HAS_VITERBI)) {
+    ber_display = "N/A (No FEC)";
+  } else if (ber == 0xFFFFFFFF || ber == 0xFFFFFFFE || ber == 0) {
     ber_display = "N/A";
   } else {
     static char ber_str[32];
@@ -1093,8 +1103,16 @@ void display_signal_stats_with_scale(uint16_t signal_raw, uint16_t snr_raw, uint
   
   // Determine accurate status description based on frontend flags
   const char * status_desc;
-  if (status & FE_HAS_LOCK) {
+  if (status & FE_REINIT) {
+    status_desc = "Reinit";
+  } else if (status & FE_TIMEDOUT) {
+    status_desc = "Timeout";
+  } else if (status & FE_HAS_LOCK) {
     status_desc = "Lock";
+  } else if (status & FE_HAS_SYNC) {
+    status_desc = "Sync";
+  } else if (status & FE_HAS_VITERBI) {
+    status_desc = "Viterbi";
   } else if (status & FE_HAS_CARRIER) {
     status_desc = "Carrier";
   } else if (status & FE_HAS_SIGNAL) {
@@ -1103,9 +1121,11 @@ void display_signal_stats_with_scale(uint16_t signal_raw, uint16_t snr_raw, uint
     status_desc = "NoSignal";
   }
   
-  // Handle BER display - common "not supported" values
+  // Handle BER display - only meaningful if VITERBI is stable
   const char * ber_display;
-  if (ber == 0xFFFFFFFF || ber == 0xFFFFFFFE || ber == 0) {
+  if (!(status & FE_HAS_VITERBI)) {
+    ber_display = "N/A (No FEC)";
+  } else if (ber == 0xFFFFFFFF || ber == 0xFFFFFFFE || ber == 0) {
     ber_display = "N/A";
   } else {
     static char ber_str[32];
