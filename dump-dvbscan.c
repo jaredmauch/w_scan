@@ -97,6 +97,28 @@ void dvbscan_dump_tuningdata (  FILE *f,
                                         }
                                 }
                         }
+                
+                // Output frontend status flags for all frequencies that had any signal
+                fprintf (f, "#\n");
+                fprintf (f, "# Frontend status flags for all frequencies with signal:\n");
+                fprintf (f, "# FREQUENCY | FE_HAS_SIGNAL FE_HAS_LOCK FE_HAS_CARRIER FE_HAS_SYNC FE_HAS_VITERBI\n");
+                if (all_transponders != NULL) {
+                        struct transponder * tp;
+                        for(tp = all_transponders->first; tp; tp = tp->next) {
+                                if ((tp->source >> 8) == 64) { // ATSC frequencies
+                                        // Only show frequencies that had any frontend status flags
+                                        if (tp->frontend_status != 0) {
+                                                fprintf(f, "# %09d | %s %s %s %s %s\n",
+                                                        tp->frequency,
+                                                        (tp->frontend_status & FE_HAS_SIGNAL) ? "YES" : "NO ",
+                                                        (tp->frontend_status & FE_HAS_LOCK) ? "YES" : "NO ",
+                                                        (tp->frontend_status & FE_HAS_CARRIER) ? "YES" : "NO ",
+                                                        (tp->frontend_status & FE_HAS_SYNC) ? "YES" : "NO ",
+                                                        (tp->frontend_status & FE_HAS_VITERBI) ? "YES" : "NO ");
+                                                }
+                                        }
+                                }
+                        }
 
                 switch (flags->scantype) {
                         case SCAN_TERRCABLE_ATSC:
@@ -149,9 +171,10 @@ void dvbscan_dump_tuningdata (  FILE *f,
                                                                 // It appears to be stored as (major << 10) | minor
                                                                 int major = s->logical_channel_number >> 10;
                                                                 int minor = s->logical_channel_number & 0x3FF;
-                                                                if (minor > 0) {
+                                                                // Only show :1 channels (major channels only)
+                                                                if (minor == 1) {
                                                                         fprintf (f, " (Ch %d:%d)", major, minor);
-                                                                } else {
+                                                                } else if (minor == 0) {
                                                                         fprintf (f, " (Ch %d)", major);
                                                                 }
                                                         }

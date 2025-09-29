@@ -3086,8 +3086,9 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                  t->source = 0;
                  t->network_name=NULL;
                  
-                 // Set initial scan lock status
+                 // Set initial scan lock status and capture frontend status flags
                  t->initial_scan_locked = (ret & FE_HAS_LOCK) != 0;
+                 t->frontend_status = ret;
                  
                  init_tp(t);
 

@@ -215,6 +215,7 @@ struct transponder {
   char * signal_quality;                  // quality string (e.g., "Excellent", "Very Good")
   char * video_resolution;                // video resolution (e.g., "1080p", "720p", "480p")
   bool initial_scan_locked;               // whether this frequency achieved lock during initial scan
+  uint16_t frontend_status;               // frontend status flags (FE_HAS_SIGNAL, FE_HAS_LOCK, etc.)
 };
 typedef struct transponder transponder_t;
 #endif

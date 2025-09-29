@@ -990,7 +990,13 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
   }
   
   // Convert SNR to percentage (femon-like approach)
-  double snr_percent;
+  double snr_percent = 0.0;
+  
+  // Additional check: if we have carrier but very low SNR, signal might be inverted
+  if (signal_percent > 70.0 && (status & FE_HAS_CARRIER) && !(status & FE_HAS_LOCK) && snr_percent < 5.0) {
+    // High signal + carrier + no lock + very low SNR suggests signal inversion
+    signal_percent = 100.0 - signal_percent;
+  }
   if (snr_raw == 0) {
     snr_percent = 0.0;
   } else if (snr_raw <= 100) {
