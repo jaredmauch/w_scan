@@ -3042,6 +3042,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      ioctl(frontend_fd, FE_READ_UNCORRECTED_BLOCKS, &uncorrected_blocks);
                      
                      // Display signal statistics for debugging
+                     info("\n");
                      display_signal_stats(signal_raw, snr_raw, ber, uncorrected_blocks, status);
                  }
                  
@@ -3113,6 +3114,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      t->video_resolution = NULL; // Will be set later when services are parsed
                      
                      // Display final stabilized signal statistics
+                     info("\n");
                      display_signal_stats(signal_raw, snr_raw, ber, uncorrected_blocks, status);
                  }
                  
