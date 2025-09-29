@@ -3591,8 +3591,8 @@ static void dump_lists(int adapter, int frontend) {
         // Count ATSC frequencies based on delivery system
         if (t->delsys == SYS_ATSC) {
            frequency_count++;
-           // Check if this frequency achieved lock during initial scan
-           if (t->initial_scan_locked) {
+           // Check if this frequency achieved lock (initial or secondary scan)
+           if (t->frontend_status & FE_HAS_LOCK) {
               locked_frequency_count++;
               }
            }
