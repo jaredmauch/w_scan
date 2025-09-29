@@ -3352,14 +3352,29 @@ static void scan_tp(void) {
 }
 
 static void network_scan(int frontend_fd, int tuning_data) {
-  if (initial_tune(frontend_fd, tuning_data) < 0) {
+  int initial_result = initial_tune(frontend_fd, tuning_data);
+  
+  // Check if any transponders were detected in initial scan
+  bool has_detected_transponders = false;
+  struct transponder * t;
+  for (t = master_transponders->first; t; t = t->next) {
+     if (t->initial_scan_detected) {
+        has_detected_transponders = true;
+        break;
+        }
+     }
+  
+  if (!has_detected_transponders) {
      error("Sorry - i couldn't get any working frequency/transponder\n Nothing to scan!!\n");
      exit(1);
      }
 
-  do {
-     scan_tp();
-     } while (tune_to_next_transponder(frontend_fd) == 0);
+  // Proceed with secondary scan if initial scan found transponders
+  if (initial_result >= 0) {
+     do {
+        scan_tp();
+        } while (tune_to_next_transponder(frontend_fd) == 0);
+     }
 }
 
 int device_is_preferred(int caps, const char * frontend_name, uint16_t scantype) {
