@@ -740,6 +740,7 @@ static void copy_transponder(struct transponder * dest, struct transponder * sou
   struct cell * p/*, * p1*/;
 
   copy_fe_params(dest, source);
+  dest->type                 = source->type;
   dest->network_PID          = source->network_PID;
   dest->network_id           = source->network_id;
   dest->original_network_id  = source->original_network_id;
