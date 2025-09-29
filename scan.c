@@ -750,6 +750,20 @@ static void copy_transponder(struct transponder * dest, struct transponder * sou
   dest->initial_scan_detected = source->initial_scan_detected;
   dest->secondary_scan_completed = source->secondary_scan_completed;
   dest->frontend_status      = source->frontend_status;
+  dest->signal_strength_dbm  = source->signal_strength_dbm;
+  dest->snr_db               = source->snr_db;
+  dest->ber                  = source->ber;
+  dest->uncorrected_blocks   = source->uncorrected_blocks;
+  dest->video_resolution     = source->video_resolution;
+  
+  // Copy signal quality string
+  if (dest->signal_quality) {
+     free(dest->signal_quality);
+     dest->signal_quality = NULL;
+     }
+  if (source->signal_quality != NULL) {
+     dest->signal_quality = strdup(source->signal_quality);
+     }
 
   if (dest->network_name) {
      free(dest->network_name);
