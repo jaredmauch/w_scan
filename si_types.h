@@ -208,16 +208,23 @@ struct transponder {
   char * network_name;
   network_change_t network_change;
   /*---------------------------- signal quality information ---------------------------------*/
-  double signal_strength_dbm;             // signal strength in dBm
-  double snr_db;                          // signal-to-noise ratio in dB
-  uint32_t ber;                           // bit error rate
-  uint32_t uncorrected_blocks;            // uncorrected blocks
-  char * signal_quality;                  // quality string (e.g., "Excellent", "Very Good")
+  double signal_strength_dbm;             // signal strength in dBm (final - from secondary scan if available)
+  double snr_db;                          // signal-to-noise ratio in dB (final - from secondary scan if available)
+  uint32_t ber;                           // bit error rate (final - from secondary scan if available)
+  uint32_t uncorrected_blocks;            // uncorrected blocks (final - from secondary scan if available)
+  char * signal_quality;                  // quality string (e.g., "Excellent", "Very Good") (final)
   char * video_resolution;                // video resolution (e.g., "1080p", "720p", "480p")
+  
+  // Initial scan data (baseline)
+  double initial_signal_strength_dbm;     // signal strength from initial scan
+  double initial_snr_db;                  // SNR from initial scan
+  uint16_t initial_frontend_status;       // frontend status from initial scan
+  
+  // Scan state tracking
   bool initial_scan_locked;               // whether this frequency achieved lock during initial scan
   bool initial_scan_detected;             // whether this frequency was detected during initial scan
   bool secondary_scan_completed;          // whether this frequency has been processed in secondary scan
-  uint16_t frontend_status;               // frontend status flags (FE_HAS_SIGNAL, FE_HAS_LOCK, etc.)
+  uint16_t frontend_status;               // frontend status flags (final - from secondary scan if available)
 };
 typedef struct transponder transponder_t;
 #endif

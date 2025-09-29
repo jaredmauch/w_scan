@@ -196,9 +196,17 @@ struct transponder * alloc_transponder(uint32_t frequency, unsigned delsys, uint
   t->uncorrected_blocks = 0;
   t->signal_quality = NULL;
   t->video_resolution = NULL;
+  
+  // Initialize initial scan data
+  t->initial_signal_strength_dbm = 0.0;
+  t->initial_snr_db = 0.0;
+  t->initial_frontend_status = 0;
+  
+  // Initialize scan state tracking
   t->initial_scan_locked = false;
   t->initial_scan_detected = false;
   t->secondary_scan_completed = false;
+  t->frontend_status = 0;
 
   switch(delsys) {
      case SYS_DVBT:
@@ -755,6 +763,11 @@ static void copy_transponder(struct transponder * dest, struct transponder * sou
   dest->ber                  = source->ber;
   dest->uncorrected_blocks   = source->uncorrected_blocks;
   dest->video_resolution     = source->video_resolution;
+  
+  // Copy initial scan data
+  dest->initial_signal_strength_dbm = source->initial_signal_strength_dbm;
+  dest->initial_snr_db              = source->initial_snr_db;
+  dest->initial_frontend_status     = source->initial_frontend_status;
   
   // Copy signal quality string
   if (dest->signal_quality) {
@@ -2510,6 +2523,35 @@ static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v)
      if (!flags.emulate) {
         usleep(100000); // 100ms stabilization period
         }
+     
+     // Capture signal quality data during secondary scan (overrides initial scan data)
+     if (!flags.emulate && is_service_scan) {
+        uint16_t signal_raw, snr_raw;
+        uint32_t ber, uncorrected_blocks;
+        fe_status_t status;
+        
+        ioctl(frontend_fd, FE_READ_STATUS, &status);
+        ioctl(frontend_fd, FE_READ_SIGNAL_STRENGTH, &signal_raw);
+        ioctl(frontend_fd, FE_READ_SNR, &snr_raw);
+        ioctl(frontend_fd, FE_READ_BER, &ber);
+        ioctl(frontend_fd, FE_READ_UNCORRECTED_BLOCKS, &uncorrected_blocks);
+        
+        // Override initial scan data with secondary scan data (more accurate)
+        t->signal_strength_dbm = signal_strength_to_dbm(signal_raw);
+        t->snr_db = snr_to_db(snr_raw);
+        t->ber = ber;
+        t->uncorrected_blocks = uncorrected_blocks;
+        
+        // Update signal quality string
+        if (t->signal_quality) {
+           free(t->signal_quality);
+           }
+        t->signal_quality = strdup(get_signal_quality(t->signal_strength_dbm, t->snr_db));
+        
+        // Update frontend status with final status
+        t->frontend_status = status & 0x1F;
+        }
+     
      current_tp = t;
      t->last_tuning_failed = 0;
      t->locks_with_params = true;
@@ -2517,6 +2559,34 @@ static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v)
      }
 
  
+  // Even if no full lock, capture signal quality data if we have any signal
+  if (!flags.emulate && is_service_scan && (ret & (FE_HAS_SIGNAL | FE_HAS_CARRIER))) {
+     uint16_t signal_raw, snr_raw;
+     uint32_t ber, uncorrected_blocks;
+     fe_status_t status;
+     
+     ioctl(frontend_fd, FE_READ_STATUS, &status);
+     ioctl(frontend_fd, FE_READ_SIGNAL_STRENGTH, &signal_raw);
+     ioctl(frontend_fd, FE_READ_SNR, &snr_raw);
+     ioctl(frontend_fd, FE_READ_BER, &ber);
+     ioctl(frontend_fd, FE_READ_UNCORRECTED_BLOCKS, &uncorrected_blocks);
+     
+     // Override initial scan data with secondary scan data (more accurate)
+     t->signal_strength_dbm = signal_strength_to_dbm(signal_raw);
+     t->snr_db = snr_to_db(snr_raw);
+     t->ber = ber;
+     t->uncorrected_blocks = uncorrected_blocks;
+     
+     // Update signal quality string
+     if (t->signal_quality) {
+        free(t->signal_quality);
+        }
+     t->signal_quality = strdup(get_signal_quality(t->signal_strength_dbm, t->snr_db));
+     
+     // Update frontend status with final status
+     t->frontend_status = status & 0x1F;
+     }
+
   if (v > 0)
      info("----------no signal----------\n");
   else 
@@ -3184,7 +3254,8 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                  // Use the original status detected before stabilization
                  t->initial_scan_locked = (original_frontend_status & FE_HAS_LOCK) != 0;
                  t->initial_scan_detected = true;  // Mark as detected in initial scan
-                 t->frontend_status = original_frontend_status;
+                 t->initial_frontend_status = original_frontend_status;
+                 t->frontend_status = original_frontend_status; // Will be updated by secondary scan if available
                  
                  init_tp(t);
 
@@ -3202,8 +3273,13 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                      ioctl(frontend_fd, FE_READ_BER, &ber);
                      ioctl(frontend_fd, FE_READ_UNCORRECTED_BLOCKS, &uncorrected_blocks);
                      
-                     t->signal_strength_dbm = signal_strength_to_dbm(signal_raw);
-                     t->snr_db = snr_to_db(snr_raw);
+                     // Store initial scan data
+                     t->initial_signal_strength_dbm = signal_strength_to_dbm(signal_raw);
+                     t->initial_snr_db = snr_to_db(snr_raw);
+                     
+                     // Store as final data (will be overridden by secondary scan if available)
+                     t->signal_strength_dbm = t->initial_signal_strength_dbm;
+                     t->snr_db = t->initial_snr_db;
                      t->ber = ber;
                      t->uncorrected_blocks = uncorrected_blocks;
                      t->signal_quality = strdup(get_signal_quality(t->signal_strength_dbm, t->snr_db));
