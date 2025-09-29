@@ -157,8 +157,7 @@ enum __output_format {
 };
 static enum __output_format output_format = OUTPUT_VDR;
 
-cList _scanned_transponders, * scanned_transponders = &_scanned_transponders;
-cList _new_transponders, * new_transponders = &_new_transponders;
+cList _master_transponders, * master_transponders = &_master_transponders;
 static struct transponder * current_tp;
 
 static void setup_filter(struct section_buf * s, const char * dmx_devname, int pid, int table_id, int table_id_ext,
@@ -198,6 +197,8 @@ struct transponder * alloc_transponder(uint32_t frequency, unsigned delsys, uint
   t->signal_quality = NULL;
   t->video_resolution = NULL;
   t->initial_scan_locked = false;
+  t->initial_scan_detected = false;
+  t->secondary_scan_completed = false;
 
   switch(delsys) {
      case SYS_DVBT:
@@ -235,7 +236,7 @@ struct transponder * alloc_transponder(uint32_t frequency, unsigned delsys, uint
   t->network_name = NULL;  
 
   if (frequency > 0) { //dont check, if we dont yet know freq.
-     for(tn = new_transponders->first; tn; tn = tn->next) {
+     for(tn = master_transponders->first; tn; tn = tn->next) {
         if (tn->delsys != t->delsys)
            continue;
         if (tn->frequency == frequency) {
@@ -248,7 +249,7 @@ struct transponder * alloc_transponder(uint32_t frequency, unsigned delsys, uint
      }
 
   if (known == false) {
-     AddItem(new_transponders, t);
+     AddItem(master_transponders, t);
      }
   return t;
 }
@@ -410,7 +411,7 @@ static struct transponder* find_transponder_by_freq(struct transponder * tn) {
      return NULL;  // delsys doesnt match
      }
 
-  for(t = scanned_transponders->first; t; t = t->next) {
+  for(t = master_transponders->first; t; t = t->next) {
      if (t->delsys != tn->delsys)
         continue;
      if ((flags.scantype == SCAN_SATELLITE) && (t->polarization != tn->polarization))
@@ -445,13 +446,13 @@ static struct transponder* find_transponder_by_freq(struct transponder * tn) {
         }
      if (is_nearly_same_frequency(t->frequency,tn->frequency,tn->type)) {
         print_transponder(buffer, t);
-        verbose("          -> found 'scanned_transponders(%.3u)'  %s\n", t->index, buffer);
+        verbose("          -> found 'master_transponders(%.3u)'  %s\n", t->index, buffer);
         free(buffer);
         return t;
         }
      }
 
-  for(t = new_transponders->first; t; t = t->next) {
+  for(t = master_transponders->first; t; t = t->next) {
      if (t->delsys != tn->delsys)
         continue;
      if ((flags.scantype == SCAN_SATELLITE) && (t->polarization != tn->polarization))
@@ -486,7 +487,7 @@ static struct transponder* find_transponder_by_freq(struct transponder * tn) {
         }
      if (is_nearly_same_frequency(t->frequency,tn->frequency,tn->type)) {
         print_transponder(buffer, t);
-        verbose("          -> found 'new_transponders(%.3u)'  %s\n", t->index, buffer);
+        verbose("          -> found 'master_transponders(%.3u)'  %s\n", t->index, buffer);
         free(buffer);
         return t;
         }
@@ -513,25 +514,25 @@ static struct transponder * find_transponder(uint16_t original_network_id, uint1
      return NULL;
 
   if (original_network_id != 0) {
-     for(t = scanned_transponders->first; t; t = t->next) {
+     for(t = master_transponders->first; t; t = t->next) {
         if (check_onid && t->original_network_id) {
            if (t->original_network_id != original_network_id)
               continue;
            }
         if ((t->transport_stream_id == transport_stream_id) && (t->network_id == network_id)) {
            print_transponder(buf, t);
-           verbose("          -> found 'scanned_transponders(%.3u)'  %s (line %d)\n", t->index, buf, __LINE__);
+           verbose("          -> found 'master_transponders(%.3u)'  %s (line %d)\n", t->index, buf, __LINE__);
            return t;
            }
         }
-     for(t = new_transponders->first; t; t = t->next) {
+     for(t = master_transponders->first; t; t = t->next) {
         if (check_onid && t->original_network_id) {
            if (t->original_network_id != original_network_id)
               continue;
            }
         if ((t->transport_stream_id == transport_stream_id) && (t->network_id == network_id)) {
            print_transponder(buf, t);
-           verbose("          -> found 'new_transponders(%.3u)'  %s (line %d)\n", t->index, buf, __LINE__);
+           verbose("          -> found 'master_transponders(%.3u)'  %s (line %d)\n", t->index, buf, __LINE__);
            return t;
            }
         }
@@ -545,7 +546,7 @@ static struct transponder * find_transponder(uint16_t original_network_id, uint1
 static int is_known_initial_transponder(struct transponder * tn, int auto_allowed) {
   struct transponder * t;
 
-  for(t = new_transponders->first; t; t = t->next) {
+  for(t = master_transponders->first; t; t = t->next) {
      switch(tn->type) {
         case SCAN_TERRESTRIAL:
         case SCAN_CABLE:
@@ -635,14 +636,14 @@ void  list_transponders() {
   char buf[128];
 
   verbose("          ================= %s() =======================\n", __FUNCTION__);
-  for(t = scanned_transponders->first; t; t = t->next) {
+  for(t = master_transponders->first; t; t = t->next) {
      print_transponder(buf, t);
-     verbose("          %s(%.3u): %s\n", scanned_transponders->name, t->index, buf);
+     verbose("          %s(%.3u): %s\n", master_transponders->name, t->index, buf);
      }
 
-  for(t = new_transponders->first; t; t = t->next) {
+  for(t = master_transponders->first; t; t = t->next) {
      print_transponder(buf, t);
-     verbose("          %s(%.3u): %s\n", new_transponders->name, t->index, buf);
+     verbose("          %s(%.3u): %s\n", master_transponders->name, t->index, buf);
      }
   verbose("          =============================================================\n");
 }
@@ -678,7 +679,7 @@ void check_duplicate_transponders() {
 
 
   verbose("          %s()\n", __FUNCTION__);
-  for(t = scanned_transponders->first; t; t = t->next) {
+  for(t = master_transponders->first; t; t = t->next) {
      for(t2 = t->next; t2; t2 = t2->next) {
         if (t->delsys != t2->delsys)
            continue;
@@ -692,11 +693,11 @@ void check_duplicate_transponders() {
            continue;
         copy_duplicate_tp(t,t2);
         print_transponder(buf, t2);
-        verbose("          DELETING DUPLICATE TRANSPONDER %s(%.3u): %s (line:%d)\n", scanned_transponders->name, t2->index, buf, __LINE__);
-        DeleteItem(scanned_transponders,t2);
+        verbose("          DELETING DUPLICATE TRANSPONDER %s(%.3u): %s (line:%d)\n", master_transponders->name, t2->index, buf, __LINE__);
+        DeleteItem(master_transponders,t2);
         return;
         }
-     for(t2 = new_transponders->first; t2; t2 = t2->next) {
+     for(t2 = master_transponders->first; t2; t2 = t2->next) {
         if (t->delsys != t2->delsys)
            continue;
         if (t->original_network_id && t2->original_network_id) {
@@ -709,12 +710,12 @@ void check_duplicate_transponders() {
            continue;
         copy_duplicate_tp(t,t2);
         print_transponder(buf, t2);
-        verbose("          DELETING DUPLICATE TRANSPONDER %s(%.3u): %s (line:%d)\n", new_transponders->name, t2->index, buf, __LINE__);
-        DeleteItem(new_transponders,t2);
+        verbose("          DELETING DUPLICATE TRANSPONDER %s(%.3u): %s (line:%d)\n", master_transponders->name, t2->index, buf, __LINE__);
+        DeleteItem(master_transponders,t2);
         return;
         }
      }
-  for(t = new_transponders->first; t; t = t->next) {
+  for(t = master_transponders->first; t; t = t->next) {
      for(t2 = t->next; t2; t2 = t2->next) {
         if (t->delsys != t2->delsys)
            continue;
@@ -728,8 +729,8 @@ void check_duplicate_transponders() {
            continue;
         copy_duplicate_tp(t,t2);
         print_transponder(buf, t2);
-        verbose("          DELETING DUPLICATE TRANSPONDER %s(%.3u): %s (line:%d)\n", new_transponders->name, t2->index, buf, __LINE__);
-        DeleteItem(new_transponders,t2);
+        verbose("          DELETING DUPLICATE TRANSPONDER %s(%.3u): %s (line:%d)\n", master_transponders->name, t2->index, buf, __LINE__);
+        DeleteItem(master_transponders,t2);
         return;
         }
      }
@@ -745,6 +746,10 @@ static void copy_transponder(struct transponder * dest, struct transponder * sou
   dest->network_id           = source->network_id;
   dest->original_network_id  = source->original_network_id;
   dest->transport_stream_id  = source->transport_stream_id;
+  dest->initial_scan_locked  = source->initial_scan_locked;
+  dest->initial_scan_detected = source->initial_scan_detected;
+  dest->secondary_scan_completed = source->secondary_scan_completed;
+  dest->frontend_status      = source->frontend_status;
 
   if (dest->network_name) {
      free(dest->network_name);
@@ -2519,26 +2524,8 @@ static int __tune_to_transponder(int frontend_fd, struct transponder * t, int v)
 }
 
 static int tune_to_transponder(int frontend_fd, struct transponder * t) {
-  struct transponder * st;
-  bool known = false;
-
-  /* move TP from "new" to "scanned" list */
-  if (IsMember(new_transponders, t)) {
-     UnlinkItem(new_transponders, t, false);
-     }
-
-  for(st = scanned_transponders->first; st; st = st->next) {
-     if ((flags.scantype == SCAN_SATELLITE) && (t->polarization != st->polarization))
-        continue;
-     if (is_nearly_same_frequency(st->frequency,t->frequency,t->type)) {
-        known = true;
-        break;
-        }
-     }
-
-  if (known == false) {
-     AddItem(scanned_transponders, t);
-     }
+  // No need to move transponders between lists - we use a single master list
+  // The transponder is already in master_transponders
 
   if (t->type != flags.scantype) { 
      t->last_tuning_failed = 1;  // ignore cable descriptors in sat NIT and vice versa
@@ -2558,48 +2545,44 @@ static int tune_to_next_transponder(int frontend_fd) {
   struct transponder * t;
   uint8_t i, j;
 
-  while(new_transponders->count) {
-     t = new_transponders->first;
-     i = 0;
+  // Look for transponders that were detected in initial scan but not yet processed in secondary scan
+  for (t = master_transponders->first; t; t = t->next) {
+     if (t->initial_scan_detected && !t->secondary_scan_completed) {
+        i = 0;
 
-     if (t->frequency && (tune_to_transponder(frontend_fd, t) == 0))
-        return 0;
+        if (t->frequency && (tune_to_transponder(frontend_fd, t) == 0))
+           return 0;
 
-     if (t->other_frequency_flag && ((t->cells)->count > 0)) {
-        while(i < (t->cells)->count) {
-           struct transponder* test = NULL;
-           struct cell* next = GetItem(t->cells, i++);
+        if (t->other_frequency_flag && ((t->cells)->count > 0)) {
+           while(i < (t->cells)->count) {
+              struct transponder* test = NULL;
+              struct cell* next = GetItem(t->cells, i++);
 
-           if (next == NULL)
-              continue; // GetItem may return NULL; dont want to segfault here.
+              if (next == NULL)
+                 continue; // GetItem may return NULL; dont want to segfault here.
 
-           t->frequency = next->center_frequencies[0];
-           j = 0;
-           test = find_transponder_by_freq(t);
-           if ((test != NULL) && !(IsMember(scanned_transponders, test))) {
-              info("retrying with center_frequency = %u\n", t->frequency);
-              if (tune_to_transponder(frontend_fd, t) == 0)
-                 return 0;
-
-              }
-           while(j < next->num_transposers) {
-              t->frequency = next->transposers[j].transposer_frequency;
+              t->frequency = next->center_frequencies[0];
+              j = 0;
               test = find_transponder_by_freq(t);
-              if ((test != NULL) && !(IsMember(scanned_transponders, test))) {
-                 info("retrying with transposer_frequency = %u\n", t->frequency);
+              if ((test != NULL) && !(IsMember(master_transponders, test))) {
+                 info("retrying with center_frequency = %u\n", t->frequency);
                  if (tune_to_transponder(frontend_fd, t) == 0)
                     return 0;
+
+                 }
+              while(j < next->num_transposers) {
+                 t->frequency = next->transposers[j].transposer_frequency;
+                 test = find_transponder_by_freq(t);
+                 if ((test != NULL) && !(IsMember(master_transponders, test))) {
+                    info("retrying with transposer_frequency = %u\n", t->frequency);
+                    if (tune_to_transponder(frontend_fd, t) == 0)
+                       return 0;
+                    }
                  }
               }
            }
-        }
-     if (IsMember(new_transponders, t)) {
-        // moving new_transponders -> scanned_transponders is handled in tune_to_transponder(),
-        // but we may pass here w/o calling it. Enshure this tp is moved to scanned_transponders.
-        verbose("skipped: (%u:%u:%u) (time: %s)\n",
-                t->original_network_id, t->network_id, t->transport_stream_id, run_time());
-        UnlinkItem(new_transponders, t, false);
-        AddItem(scanned_transponders, t);
+        // Mark this transponder as processed in secondary scan
+        t->secondary_scan_completed = true;
         }
      }
   return -1;
@@ -3183,6 +3166,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                  // Set initial scan lock status and capture frontend status flags
                  // Use the original status detected before stabilization
                  t->initial_scan_locked = (original_frontend_status & FE_HAS_LOCK) != 0;
+                 t->initial_scan_detected = true;  // Mark as detected in initial scan
                  t->frontend_status = original_frontend_status;
                  
                  init_tp(t);
@@ -3222,8 +3206,8 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                        // speed up scan NITs and later skipping known transponders.
                        if (! initial_table_lookup(frontend_fd)) {
                           info("        deleting (%s)\n", buffer);
-                          if (IsMember(new_transponders, t))     DeleteItem(new_transponders, t);
-                          if (IsMember(scanned_transponders, t)) DeleteItem(scanned_transponders, t);
+                          if (IsMember(master_transponders, t))     DeleteItem(master_transponders, t);
+                          if (IsMember(master_transponders, t)) DeleteItem(master_transponders, t);
                           }
                        break;
                     }
@@ -3235,19 +3219,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
      } // END: for delsys_parm
   } // END: if (tuning_data <= 0)
   
-  // Copy all transponders from new_transponders to scanned_transponders after initial scan
-  // This ensures they appear in the frontend status flags table while keeping them in new_transponders for secondary scan
-  if (tuning_data <= 0) {
-     struct transponder * t;
-     for (t = new_transponders->first; t; t = t->next) {
-        // Create a copy for the output function using the existing copy_transponder function
-        struct transponder * copy = alloc_transponder(t->frequency, t->delsys, t->polarization);
-        if (copy != NULL) {
-           copy_transponder(copy, t);
-           AddItem(scanned_transponders, copy);
-           }
-        }
-     }
+  // No need to copy transponders - we use a single master list
   else {
      /* ---- use initial tuning data from dvbscan ---- */
      struct transponder * t;
@@ -3256,7 +3228,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
       * network information table. In parallel scan for
       * other transponders provided by NIT actual and NIT other.
       */
-     for(t = new_transponders->first; t; t = t->next) {
+     for(t = master_transponders->first; t; t = t->next) {
         print_transponder(buffer, t);
   
         switch(flags.scantype) {
@@ -3456,9 +3428,9 @@ static void dump_lists(int adapter, int frontend) {
   char sn[20];
   FILE * dest = flags.emulate ? stderr:stdout; // no fprintf output to stdout /w emul. why? :(
 
-  if (verbosity > 4) bubbleSort(scanned_transponders, cmp_freq_pol);
+  if (verbosity > 4) bubbleSort(master_transponders, cmp_freq_pol);
 
-  for(t = scanned_transponders->first; t; t = t->next) {
+  for(t = master_transponders->first; t; t = t->next) {
      // Update video quality information for this transponder
      update_transponder_video_quality(t);
      
@@ -3491,7 +3463,7 @@ static void dump_lists(int adapter, int frontend) {
         vlc_xspf_prolog(dest, adapter, frontend, &flags, &this_lnb);
         break;
      case OUTPUT_XML:
-        xml_dump(dest, scanned_transponders);
+        xml_dump(dest, master_transponders);
         break;
      default:;
      }
@@ -3500,7 +3472,7 @@ static void dump_lists(int adapter, int frontend) {
   int frequency_count = 0;
   int locked_frequency_count = 0;
   if (output_format == OUTPUT_DVBSCAN_TUNING_DATA) {
-     for(t = scanned_transponders->first; t; t = t->next) {
+     for(t = master_transponders->first; t; t = t->next) {
         // Count ATSC frequencies based on delivery system
         if (t->delsys == SYS_ATSC) {
            frequency_count++;
@@ -3512,9 +3484,9 @@ static void dump_lists(int adapter, int frontend) {
         }
      }
 
-  for(t = scanned_transponders->first; t; t = t->next) {
+  for(t = master_transponders->first; t; t = t->next) {
      if (output_format == OUTPUT_DVBSCAN_TUNING_DATA && (t->delsys == SYS_ATSC)) {
-        dvbscan_dump_tuningdata(dest, t, index++, &flags, frequency_count, locked_frequency_count, scanned_transponders);
+        dvbscan_dump_tuningdata(dest, t, index++, &flags, frequency_count, locked_frequency_count, master_transponders);
         continue;
         }                        
      for(s = (t->services)->first; s; s = s->next) {
@@ -3895,8 +3867,7 @@ int main(int argc, char ** argv) {
   // initialize lists.
   NewList(running_filters, "running_filters");
   NewList(waiting_filters, "waiting_filters");
-  NewList(scanned_transponders, "scanned_transponders");
-  NewList(new_transponders, "new_transponders");
+  NewList(master_transponders, "master_transponders");
 
   #define cleanup() cl(country); cl(satellite); cl(initdata); cl(positionfile); cl(codepage);
 
