@@ -1092,7 +1092,7 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
   }
   
   // Display with femon-like percentage reporting
-  info("%-8s (0x%02x) Quality= %s Signal= %.1f%% C/N= %.1f%% UCB= %u BER= %s [Raw: Sig=%u SNR=%u]\n",
+  info("\t%-8s (0x%02x) Quality= %s Signal= %.1f%% C/N= %.1f%% UCB= %u BER= %s [Raw: Sig=%u SNR=%u]\n",
        status_desc, status & 0x1F, quality, signal_percent, snr_percent, uncorrected_blocks, ber_display, signal_raw, snr_raw);
 }
 
@@ -1184,7 +1184,7 @@ void display_signal_stats_with_scale(uint16_t signal_raw, uint16_t snr_raw, uint
   const char * snr_scale_name = (snr_scale == 1) ? "dB" : (snr_scale == 2) ? "rel" : (snr_scale == 3) ? "N/A" : "unk";
   
   // Display with femon-like percentage reporting
-  info("%-8s (0x%02x) Quality= %s Signal= %.1f%% C/N= %.1f%% UCB= %u BER= %s [Raw: Sig=%u(%s) SNR=%u(%s)]\n",
+  info("\t%-8s (0x%02x) Quality= %s Signal= %.1f%% C/N= %.1f%% UCB= %u BER= %s [Raw: Sig=%u(%s) SNR=%u(%s)]\n",
        status_desc, status & 0x1F, quality, signal_percent, snr_percent, uncorrected_blocks, ber_display, 
        signal_raw, signal_scale_name, snr_raw, snr_scale_name);
 }
