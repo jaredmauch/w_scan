@@ -3126,7 +3126,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                     default:;
                     } // END: switch (test.type)
      
-                 info("(time: %s)", run_time());
+                 info("(time: %s)\n", run_time());
                  if (set_frontend(frontend_fd, ptest) < 0) {
                     print_transponder(buffer, ptest);
                     dprintf(1,"\n%s:%d: Setting frontend failed %s\n", __FUNCTION__, __LINE__, buffer);
@@ -3217,7 +3217,6 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                  // For ATSC, accept signals with FE_HAS_SIGNAL | FE_HAS_CARRIER even without full lock
                  // Some ATSC signals may not achieve FE_HAS_LOCK but are still usable
                  if ((ret & (FE_HAS_SIGNAL | FE_HAS_CARRIER)) == 0) {
-                    info("\n");
                     continue;
                     }
                  verbose("\n        (%.3fsec) %s %s\n", elapsed(&meas_start, &meas_stop), 
