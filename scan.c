@@ -3058,7 +3058,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                  get_time(&meas_start);
                  set_timeout(time2carrier * flags.tuning_timeout, &timeout);  // N msec * {1,2,3}
                  if (!flags.emulate)
-                    usleep(50000); // Reduced from 100ms to 50ms for faster initial scan
+                    usleep(25000); // Reduced to 25ms for faster initial scan
                  ret = 0; lastret = ret;
 
                  // look for some signal using event-driven polling
@@ -3135,22 +3135,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                          }
                  }
                  
-                 // Always display signal statistics for debugging, even if no signal detected
-                 if (!flags.emulate) {
-                     uint16_t signal_raw, snr_raw;
-                     uint32_t ber, uncorrected_blocks;
-                     fe_status_t status;
-                     
-                     ioctl(frontend_fd, FE_READ_STATUS, &status);
-                     ioctl(frontend_fd, FE_READ_SIGNAL_STRENGTH, &signal_raw);
-                     ioctl(frontend_fd, FE_READ_SNR, &snr_raw);
-                     ioctl(frontend_fd, FE_READ_BER, &ber);
-                     ioctl(frontend_fd, FE_READ_UNCORRECTED_BLOCKS, &uncorrected_blocks);
-                     
-                     // Display signal statistics for debugging
-                     info("\n");
-                     display_signal_stats(signal_raw, snr_raw, ber, uncorrected_blocks, status);
-                 }
+                 // Skip redundant signal statistics display here - we'll show it once after stabilization
                  
                  // For ATSC, accept signals with FE_HAS_SIGNAL | FE_HAS_CARRIER even without full lock
                  // Some ATSC signals may not achieve FE_HAS_LOCK but are still usable
@@ -3177,13 +3162,11 @@ static int initial_tune(int frontend_fd, int tuning_data) {
 
                  // Add brief stabilization period after lock to ensure frontend is fully tuned
                  if (!flags.emulate) {
-                     verbose("        stabilizing frontend...\n");
-                     usleep(150000); // 150ms stabilization period for ATSC (reduced for faster scan)
+                     usleep(100000); // Reduced to 100ms for faster initial scan
                      
                      // Verify signal is still present after stabilization
-                     ret = check_frontend(frontend_fd, 1); // Use verbose=1 to show final lock status
+                     ret = check_frontend(frontend_fd, 0); // Don't show verbose output during stabilization
                      if (!(ret & (FE_HAS_SIGNAL | FE_HAS_CARRIER))) {
-                        verbose("        signal lost during stabilization, skipping\n");
                         continue;
                         }
                      }
