@@ -106,8 +106,8 @@ void dvbscan_dump_tuningdata (  FILE *f,
                         struct transponder * tp;
                         for(tp = all_transponders->first; tp; tp = tp->next) {
                                 if ((tp->source >> 8) == 64) { // ATSC frequencies
-                                        // Only show frequencies that had any frontend status flags
-                                        if (tp->frontend_status != 0) {
+                                        // Show frequencies that had signal, lock, or carrier
+                                        if (tp->frontend_status & (FE_HAS_SIGNAL | FE_HAS_LOCK | FE_HAS_CARRIER)) {
                                                 fprintf(f, "# %09d | %s %s %s %s %s\n",
                                                         tp->frequency,
                                                         (tp->frontend_status & FE_HAS_SIGNAL) ? "YES" : "NO ",
