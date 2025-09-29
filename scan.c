@@ -3233,13 +3233,17 @@ static int initial_tune(int frontend_fd, int tuning_data) {
      } // END: for delsys_parm
   } // END: if (tuning_data <= 0)
   
-  // Move all transponders from new_transponders to scanned_transponders after initial scan
-  // This ensures they appear in the frontend status flags table
+  // Copy all transponders from new_transponders to scanned_transponders after initial scan
+  // This ensures they appear in the frontend status flags table while keeping them in new_transponders for secondary scan
   if (tuning_data <= 0) {
      struct transponder * t;
-     while ((t = new_transponders->first) != NULL) {
-        UnlinkItem(new_transponders, t, false);
-        AddItem(scanned_transponders, t);
+     for (t = new_transponders->first; t; t = t->next) {
+        // Create a copy for the output function using the existing copy_transponder function
+        struct transponder * copy = alloc_transponder(t->frequency, t->delsys, t->polarization);
+        if (copy != NULL) {
+           copy_transponder(copy, t);
+           AddItem(scanned_transponders, copy);
+           }
         }
      }
   else {
