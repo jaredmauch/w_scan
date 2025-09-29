@@ -3054,7 +3054,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                           info("%d %s: skipped (already known transponder)\n", freq_scale(f, 1e-3), atsc_mod_to_txt(this_atsc));
                           continue;
                           }
-                       info("%d: %s\n", freq_scale(f, 1e-3), atsc_mod_to_txt(this_atsc));
+                       info("%d: %s", freq_scale(f, 1e-3), atsc_mod_to_txt(this_atsc));
                        break;
                     case SCAN_CABLE:
                        f = chan_to_freq(channel, this_channellist);
