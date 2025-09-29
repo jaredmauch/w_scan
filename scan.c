@@ -2633,6 +2633,89 @@ static uint16_t check_frontend(int fd, int verbose) {
   return (status & 0x1F);
 }
 
+/**
+ * Wait for frontend status change using event-driven polling
+ * This is more efficient than fixed sleep timers as it responds immediately
+ * to status changes rather than polling at fixed intervals
+ * @param fd Frontend file descriptor
+ * @param timeout_ms Timeout in milliseconds (0 = no timeout)
+ * @param target_status Target status flags to wait for (e.g., FE_HAS_SIGNAL | FE_HAS_CARRIER)
+ * @param verbose Verbose output level
+ * @return Final frontend status flags
+ */
+static uint16_t wait_for_frontend_event(int fd, int timeout_ms, uint16_t target_status, int verbose) {
+  struct pollfd pfd;
+  struct timespec start_time, current_time;
+  int poll_result;
+  uint16_t status = 0;
+  uint16_t last_status = 0;
+  
+  pfd.fd = fd;
+  pfd.events = POLLIN | POLLPRI; // Wait for data or urgent data
+  
+  get_time(&start_time);
+  
+  while (1) {
+    // Check if we already have the target status
+    status = check_frontend(fd, 0);
+    if ((status & target_status) == target_status) {
+      return status;
+    }
+    
+    // Check timeout
+    if (timeout_ms > 0) {
+      get_time(&current_time);
+      double elapsed_ms = elapsed(&start_time, &current_time) * 1000.0;
+      if (elapsed_ms >= timeout_ms) {
+        return status;
+      }
+    }
+    
+    // Wait for frontend event
+    poll_result = poll(&pfd, 1, 100); // 100ms poll timeout
+    
+    if (poll_result < 0) {
+      // Error occurred
+      if (errno == EINTR) {
+        continue; // Interrupted by signal, retry
+      }
+      return status;
+    } else if (poll_result == 0) {
+      // Timeout - check status again
+      continue;
+    } else {
+      // Data available - check for frontend events
+      if (pfd.revents & (POLLIN | POLLPRI)) {
+        // Try to read frontend event
+        struct dvb_frontend_event event;
+        if (ioctl(fd, FE_GET_EVENT, &event) == 0) {
+          // Event received - check if it's a status change
+          status = event.status & 0x1F;
+          if (status != last_status) {
+            last_status = status;
+            if (verbose > 0) {
+              // Display status change
+              struct timespec meas_stop;
+              get_time(&meas_stop);
+              verbose("\n        (%.3fsec): %s%s%s%s%s%s%s (0x%02X) %s",
+                   elapsed(&start_time, &meas_stop),
+                   status & FE_HAS_SIGNAL ?"S":"",
+                   status & FE_HAS_CARRIER?"C":"",
+                   status & FE_HAS_VITERBI?"V":"",
+                   status & FE_HAS_SYNC?   "Y":"",
+                   status & FE_HAS_LOCK?   "L":"",
+                   status & FE_TIMEDOUT?   "T":"",
+                   status & FE_REINIT?     "R":"",
+                   status,
+                   get_fe_status_comment(status));
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 static unsigned int chan_to_freq(int channel, int channellist) {
   //debug("channellist=%d, base_offset=%d, channel=%d, step=%d\n",
   //        channellist, base_offset(channel, channellist),
@@ -2978,27 +3061,34 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                     usleep(50000); // Reduced from 100ms to 50ms for faster initial scan
                  ret = 0; lastret = ret;
 
-                 // look for some signal.
-                 while((ret & (FE_HAS_SIGNAL | FE_HAS_CARRIER)) == 0) {
-                     ret = check_frontend(frontend_fd,0);
-                     if (ret != lastret) {
-                        get_time(&meas_stop);
-                        verbose("\n        (%.3fsec): %s%s%s%s%s%s%s (0x%02X) %s",
-                             elapsed(&meas_start, &meas_stop),
-                             ret & FE_HAS_SIGNAL ?"S":"",
-                             ret & FE_HAS_CARRIER?"C":"",
-                             ret & FE_HAS_VITERBI?"V":"",
-                             ret & FE_HAS_SYNC?   "Y":"",
-                             ret & FE_HAS_LOCK?   "L":"",
-                             ret & FE_TIMEDOUT?   "T":"",
-                             ret & FE_REINIT?     "R":"",
-                             ret,
-                             get_fe_status_comment(ret));
-                        lastret = ret;
-                        }
-                     if (timeout_expired(&timeout) || flags.emulate) break;
-                     usleep(50000);
-                     }
+                 // look for some signal using event-driven polling
+                 if (!flags.emulate) {
+                     int carrier_timeout_ms = carrier_timeout(delsys) * flags.tuning_timeout;
+                     ret = wait_for_frontend_event(frontend_fd, carrier_timeout_ms, 
+                                                  FE_HAS_SIGNAL | FE_HAS_CARRIER, 0);
+                 } else {
+                     // Emulation mode - use original polling
+                     while((ret & (FE_HAS_SIGNAL | FE_HAS_CARRIER)) == 0) {
+                         ret = check_frontend(frontend_fd,0);
+                         if (ret != lastret) {
+                            get_time(&meas_stop);
+                            verbose("\n        (%.3fsec): %s%s%s%s%s%s%s (0x%02X) %s",
+                                 elapsed(&meas_start, &meas_stop),
+                                 ret & FE_HAS_SIGNAL ?"S":"",
+                                 ret & FE_HAS_CARRIER?"C":"",
+                                 ret & FE_HAS_VITERBI?"V":"",
+                                 ret & FE_HAS_SYNC?   "Y":"",
+                                 ret & FE_HAS_LOCK?   "L":"",
+                                 ret & FE_TIMEDOUT?   "T":"",
+                                 ret & FE_REINIT?     "R":"",
+                                 ret,
+                                 get_fe_status_comment(ret));
+                            lastret = ret;
+                            }
+                         if (timeout_expired(&timeout) || flags.emulate) break;
+                         usleep(50000);
+                         }
+                 }
                  if ((ret & (FE_HAS_SIGNAL | FE_HAS_CARRIER)) == 0) {
                     if (sr_parm == dvbc_symbolrate_max)
                        info("\n");
@@ -3008,30 +3098,42 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                  //now, we should get also lock.
                  set_timeout(time2lock * flags.tuning_timeout, &timeout);  // N msec * {1,2,3}
 
-                 while((ret & FE_HAS_LOCK) == 0) {
-                     ret = check_frontend(frontend_fd,0);
-                     if (ret != lastret) {
-                        get_time(&meas_stop);
-                        verbose("\n        (%.3fsec): %s%s%s%s%s%s%s (0x%02X) %s",
-                             elapsed(&meas_start, &meas_stop),
-                             ret & FE_HAS_SIGNAL ?"S":"",
-                             ret & FE_HAS_CARRIER?"C":"",
-                             ret & FE_HAS_VITERBI?"V":"",
-                             ret & FE_HAS_SYNC?   "Y":"",
-                             ret & FE_HAS_LOCK?   "L":"",
-                             ret & FE_TIMEDOUT?   "T":"",
-                             ret & FE_REINIT?     "R":"",
-                             ret,
-                             get_fe_status_comment(ret));
-                        lastret = ret;
-                        }
+                 // Wait for lock using event-driven polling
+                 if (!flags.emulate) {
+                     int lock_timeout_ms = time2lock * flags.tuning_timeout;
+                     uint16_t target_status = FE_HAS_LOCK;
                      // For initial scan, move on once we have any signal, lock, or carrier
-                     if (ret & (FE_HAS_SIGNAL | FE_HAS_LOCK | FE_HAS_CARRIER)) {
-                        break;
-                        }
-                     if (timeout_expired(&timeout) || flags.emulate) break;
-                     usleep(50000);
+                     if (time2lock == lock_timeout(delsys)) { // Initial scan
+                         target_status = FE_HAS_SIGNAL | FE_HAS_LOCK | FE_HAS_CARRIER;
                      }
+                     ret = wait_for_frontend_event(frontend_fd, lock_timeout_ms, target_status, 0);
+                 } else {
+                     // Emulation mode - use original polling
+                     while((ret & FE_HAS_LOCK) == 0) {
+                         ret = check_frontend(frontend_fd,0);
+                         if (ret != lastret) {
+                            get_time(&meas_stop);
+                            verbose("\n        (%.3fsec): %s%s%s%s%s%s%s (0x%02X) %s",
+                                 elapsed(&meas_start, &meas_stop),
+                                 ret & FE_HAS_SIGNAL ?"S":"",
+                                 ret & FE_HAS_CARRIER?"C":"",
+                                 ret & FE_HAS_VITERBI?"V":"",
+                                 ret & FE_HAS_SYNC?   "Y":"",
+                                 ret & FE_HAS_LOCK?   "L":"",
+                                 ret & FE_TIMEDOUT?   "T":"",
+                                 ret & FE_REINIT?     "R":"",
+                                 ret,
+                                 get_fe_status_comment(ret));
+                            lastret = ret;
+                            }
+                         // For initial scan, move on once we have any signal, lock, or carrier
+                         if (ret & (FE_HAS_SIGNAL | FE_HAS_LOCK | FE_HAS_CARRIER)) {
+                            break;
+                            }
+                         if (timeout_expired(&timeout) || flags.emulate) break;
+                         usleep(50000);
+                         }
+                 }
                  
                  // Always display signal statistics for debugging, even if no signal detected
                  if (!flags.emulate) {
