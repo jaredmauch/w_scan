@@ -3512,7 +3512,8 @@ static void dump_lists(int adapter, int frontend) {
   int locked_frequency_count = 0;
   if (output_format == OUTPUT_DVBSCAN_TUNING_DATA) {
      for(t = scanned_transponders->first; t; t = t->next) {
-        if ((t->source >> 8) == 64) {
+        // Count ATSC frequencies based on delivery system
+        if (t->delsys == SYS_ATSC) {
            frequency_count++;
            // Check if this frequency achieved lock during initial scan
            if (t->initial_scan_locked) {
@@ -3523,7 +3524,7 @@ static void dump_lists(int adapter, int frontend) {
      }
 
   for(t = scanned_transponders->first; t; t = t->next) {
-     if (output_format == OUTPUT_DVBSCAN_TUNING_DATA && ((t->source >> 8) == 64)) {
+     if (output_format == OUTPUT_DVBSCAN_TUNING_DATA && (t->delsys == SYS_ATSC)) {
         dvbscan_dump_tuningdata(dest, t, index++, &flags, frequency_count, locked_frequency_count, scanned_transponders);
         continue;
         }                        

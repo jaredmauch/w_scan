@@ -85,7 +85,7 @@ void dvbscan_dump_tuningdata (  FILE *f,
                 if (all_transponders != NULL) {
                         struct transponder * tp;
                         for(tp = all_transponders->first; tp; tp = tp->next) {
-                                if ((tp->source >> 8) == 64) { // ATSC frequencies
+                                if (tp->delsys == SYS_ATSC) { // ATSC frequencies
                                         // Check if this frequency has no services
                                         if (tp->services == NULL || tp->services->count == 0) {
                                                 fprintf(f, "# A %09d     8VSB\t# Signal: %s (%.1f dBm), SNR: %.1f dB, No services found\n",
@@ -105,7 +105,7 @@ void dvbscan_dump_tuningdata (  FILE *f,
                 if (all_transponders != NULL) {
                         struct transponder * tp;
                         for(tp = all_transponders->first; tp; tp = tp->next) {
-                                if ((tp->source >> 8) == 64) { // ATSC frequencies
+                                if (tp->delsys == SYS_ATSC) { // ATSC frequencies
                                         // Show frequencies that had signal, lock, or carrier
                                         if (tp->frontend_status & (FE_HAS_SIGNAL | FE_HAS_LOCK | FE_HAS_CARRIER)) {
                                                 fprintf(f, "# %09d | %s %s %s %s %s\n",
