@@ -3249,6 +3249,16 @@ static int initial_tune(int frontend_fd, int tuning_data) {
         } // END: for mod_parm
      } // END: for delsys_parm
   } // END: if (tuning_data <= 0)
+  
+  // Move all transponders from new_transponders to scanned_transponders after initial scan
+  // This ensures they appear in the frontend status flags table
+  if (tuning_data <= 0) {
+     struct transponder * t;
+     while ((t = new_transponders->first) != NULL) {
+        UnlinkItem(new_transponders, t, false);
+        AddItem(scanned_transponders, t);
+        }
+     }
   else {
      /* ---- use initial tuning data from dvbscan ---- */
      struct transponder * t;
