@@ -34,6 +34,17 @@
 #include "dvbscan.h"
 #include "countries.h"
 #include "satellites.h"
+#include <ctype.h>
+
+// Helper function to trim trailing whitespace
+static void trim_trailing_whitespace(char *str) {
+    if (str == NULL) return;
+    
+    size_t len = strlen(str);
+    while (len > 0 && isspace((unsigned char)str[len - 1])) {
+        str[--len] = '\0';
+    }
+}
 
 
 /******************************************************************************
@@ -108,13 +119,13 @@ void dvbscan_dump_tuningdata (  FILE *f,
                                 if (tp->delsys == SYS_ATSC) { // ATSC frequencies
                                         // Show frequencies that had signal, lock, or carrier
                                         if (tp->frontend_status & (FE_HAS_SIGNAL | FE_HAS_LOCK | FE_HAS_CARRIER)) {
-                                                fprintf(f, "# %09d | %s %s %s %s %s\n",
+                                                fprintf(f, "# %09d | %-3s %-3s %-3s %-3s %-3s\n",
                                                         tp->frequency,
-                                                        (tp->frontend_status & FE_HAS_SIGNAL) ? "YES" : "NO ",
-                                                        (tp->frontend_status & FE_HAS_LOCK) ? "YES" : "NO ",
-                                                        (tp->frontend_status & FE_HAS_CARRIER) ? "YES" : "NO ",
-                                                        (tp->frontend_status & FE_HAS_SYNC) ? "YES" : "NO ",
-                                                        (tp->frontend_status & FE_HAS_VITERBI) ? "YES" : "NO ");
+                                                        (tp->frontend_status & FE_HAS_SIGNAL) ? "YES" : "NO",
+                                                        (tp->frontend_status & FE_HAS_LOCK) ? "YES" : "NO",
+                                                        (tp->frontend_status & FE_HAS_CARRIER) ? "YES" : "NO",
+                                                        (tp->frontend_status & FE_HAS_SYNC) ? "YES" : "NO",
+                                                        (tp->frontend_status & FE_HAS_VITERBI) ? "YES" : "NO");
                                                 }
                                         }
                                 }
@@ -164,6 +175,8 @@ void dvbscan_dump_tuningdata (  FILE *f,
                                         for(s = (t->services)->first; s; s = s->next) {
                                                 if (s->service_name && strlen(s->service_name) > 0) {
                                                         if (service_count > 0) fprintf (f, ", ");
+                                                        // Trim trailing whitespace from service name
+                                                        trim_trailing_whitespace(s->service_name);
                                                         fprintf (f, "%s", s->service_name);
                                                         if (s->logical_channel_number > 0) {
                                                                 // Format ATSC channel number as major:minor
