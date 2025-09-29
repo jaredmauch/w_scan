@@ -3054,7 +3054,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                           info("%d %s: skipped (already known transponder)\n", freq_scale(f, 1e-3), atsc_mod_to_txt(this_atsc));
                           continue;
                           }
-                       info("%d: %s", freq_scale(f, 1e-3), atsc_mod_to_txt(this_atsc));
+                       info("%d: %s\n", freq_scale(f, 1e-3), atsc_mod_to_txt(this_atsc));
                        break;
                     case SCAN_CABLE:
                        f = chan_to_freq(channel, this_channellist);
@@ -3126,7 +3126,7 @@ static int initial_tune(int frontend_fd, int tuning_data) {
                     default:;
                     } // END: switch (test.type)
      
-                 info("(time: %s)", run_time());
+                 info("(time: %s)\n", run_time());
                  if (set_frontend(frontend_fd, ptest) < 0) {
                     print_transponder(buffer, ptest);
                     dprintf(1,"\n%s:%d: Setting frontend failed %s\n", __FUNCTION__, __LINE__, buffer);
