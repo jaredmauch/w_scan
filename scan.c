@@ -2637,8 +2637,11 @@ static int tune_to_next_transponder(int frontend_fd) {
      if (t->initial_scan_detected && !t->secondary_scan_completed) {
         i = 0;
 
-        if (t->frequency && (tune_to_transponder(frontend_fd, t) == 0))
+        if (t->frequency && (tune_to_transponder(frontend_fd, t) == 0)) {
+           // Mark as completed after successful tuning
+           t->secondary_scan_completed = true;
            return 0;
+           }
 
         if (t->other_frequency_flag && ((t->cells)->count > 0)) {
            while(i < (t->cells)->count) {
@@ -2653,17 +2656,20 @@ static int tune_to_next_transponder(int frontend_fd) {
               test = find_transponder_by_freq(t);
               if ((test != NULL) && !(IsMember(master_transponders, test))) {
                  info("retrying with center_frequency = %u\n", t->frequency);
-                 if (tune_to_transponder(frontend_fd, t) == 0)
+                 if (tune_to_transponder(frontend_fd, t) == 0) {
+                    t->secondary_scan_completed = true;
                     return 0;
-
+                    }
                  }
               while(j < next->num_transposers) {
                  t->frequency = next->transposers[j].transposer_frequency;
                  test = find_transponder_by_freq(t);
                  if ((test != NULL) && !(IsMember(master_transponders, test))) {
                     info("retrying with transposer_frequency = %u\n", t->frequency);
-                    if (tune_to_transponder(frontend_fd, t) == 0)
+                    if (tune_to_transponder(frontend_fd, t) == 0) {
+                       t->secondary_scan_completed = true;
                        return 0;
+                       }
                     }
                  }
               }
@@ -3594,7 +3600,10 @@ static void dump_lists(int adapter, int frontend) {
 
   for(t = master_transponders->first; t; t = t->next) {
      if (output_format == OUTPUT_DVBSCAN_TUNING_DATA && (t->delsys == SYS_ATSC)) {
-        dvbscan_dump_tuningdata(dest, t, index++, &flags, frequency_count, locked_frequency_count, master_transponders);
+        // Only output transponders that have services
+        if (t->services != NULL && t->services->count > 0) {
+           dvbscan_dump_tuningdata(dest, t, index++, &flags, frequency_count, locked_frequency_count, master_transponders);
+           }
         continue;
         }                        
      for(s = (t->services)->first; s; s = s->next) {
