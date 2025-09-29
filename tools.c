@@ -970,9 +970,43 @@ const char * get_signal_quality(double signal_dbm, double snr_db) {
  * @param status Frontend status flags
  */
 void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, uint32_t uncorrected_blocks, fe_status_t status) {
-  double signal_dbm = signal_strength_to_dbm(signal_raw);
-  double snr_db = snr_to_db(snr_raw);
-  const char * quality = get_signal_quality(signal_dbm, snr_db);
+  // Convert signal strength to percentage (femon-like approach)
+  double signal_percent;
+  if (signal_raw == 0) {
+    signal_percent = 0.0;
+  } else if (signal_raw <= 100) {
+    // Already a percentage (0-100)
+    signal_percent = signal_raw;
+  } else {
+    // Convert 0-65535 scale to percentage
+    signal_percent = (signal_raw * 100.0) / 65535.0;
+  }
+  
+  // Convert SNR to percentage (femon-like approach)
+  double snr_percent;
+  if (snr_raw == 0) {
+    snr_percent = 0.0;
+  } else if (snr_raw <= 100) {
+    // Already a percentage (0-100)
+    snr_percent = snr_raw;
+  } else {
+    // Convert 0-65535 scale to percentage
+    snr_percent = (snr_raw * 100.0) / 65535.0;
+  }
+  
+  // Calculate quality based on percentage values
+  const char * quality;
+  if (signal_percent < 10.0 || snr_percent < 10.0) {
+    quality = "Poor";
+  } else if (signal_percent < 30.0 || snr_percent < 30.0) {
+    quality = "Fair";
+  } else if (signal_percent < 50.0 || snr_percent < 50.0) {
+    quality = "Good";
+  } else if (signal_percent < 80.0 || snr_percent < 80.0) {
+    quality = "Very Good";
+  } else {
+    quality = "Excellent";
+  }
   
   // Determine accurate status description based on frontend flags
   const char * status_desc;
@@ -996,9 +1030,9 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
     ber_display = ber_str;
   }
   
-  // Display with accurate status description and raw values for debugging
-  info("%-8s (0x%02x) Quality= %s Signal= %.1f dBm C/N= %.1f dB UCB= %u BER= %s [Raw: Sig=%u SNR=%u]\n",
-       status_desc, status & 0x1F, quality, signal_dbm, snr_db, uncorrected_blocks, ber_display, signal_raw, snr_raw);
+  // Display with femon-like percentage reporting
+  info("%-8s (0x%02x) Quality= %s Signal= %.1f%% C/N= %.1f%% UCB= %u BER= %s [Raw: Sig=%u SNR=%u]\n",
+       status_desc, status & 0x1F, quality, signal_percent, snr_percent, uncorrected_blocks, ber_display, signal_raw, snr_raw);
 }
 
 /**
@@ -1011,9 +1045,44 @@ void display_signal_stats(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, u
  * @param fd Frontend file descriptor for scale detection
  */
 void display_signal_stats_with_scale(uint16_t signal_raw, uint16_t snr_raw, uint32_t ber, uint32_t uncorrected_blocks, fe_status_t status, int fd) {
-  double signal_dbm = signal_strength_to_dbm_with_scale(signal_raw, fd);
-  double snr_db = snr_to_db_with_scale(snr_raw, fd);
-  const char * quality = get_signal_quality(signal_dbm, snr_db);
+  // Convert signal strength to percentage (femon-like approach)
+  double signal_percent;
+  if (signal_raw == 0) {
+    signal_percent = 0.0;
+  } else if (signal_raw <= 100) {
+    // Already a percentage (0-100)
+    signal_percent = signal_raw;
+  } else {
+    // Convert 0-65535 scale to percentage
+    signal_percent = (signal_raw * 100.0) / 65535.0;
+  }
+  
+  // Convert SNR to percentage (femon-like approach)
+  double snr_percent;
+  if (snr_raw == 0) {
+    snr_percent = 0.0;
+  } else if (snr_raw <= 100) {
+    // Already a percentage (0-100)
+    snr_percent = snr_raw;
+  } else {
+    // Convert 0-65535 scale to percentage
+    snr_percent = (snr_raw * 100.0) / 65535.0;
+  }
+  
+  // Calculate quality based on percentage values
+  // Use simple percentage-based quality assessment
+  const char * quality;
+  if (signal_percent < 10.0 || snr_percent < 10.0) {
+    quality = "Poor";
+  } else if (signal_percent < 30.0 || snr_percent < 30.0) {
+    quality = "Fair";
+  } else if (signal_percent < 50.0 || snr_percent < 50.0) {
+    quality = "Good";
+  } else if (signal_percent < 80.0 || snr_percent < 80.0) {
+    quality = "Very Good";
+  } else {
+    quality = "Excellent";
+  }
   
   // Determine accurate status description based on frontend flags
   const char * status_desc;
@@ -1043,8 +1112,8 @@ void display_signal_stats_with_scale(uint16_t signal_raw, uint16_t snr_raw, uint
   const char * signal_scale_name = (signal_scale == 1) ? "dBm" : (signal_scale == 2) ? "rel" : (signal_scale == 3) ? "N/A" : "unk";
   const char * snr_scale_name = (snr_scale == 1) ? "dB" : (snr_scale == 2) ? "rel" : (snr_scale == 3) ? "N/A" : "unk";
   
-  // Display with accurate status description, scale info, and raw values
-  info("%-8s (0x%02x) Quality= %s Signal= %.1f dBm C/N= %.1f dB UCB= %u BER= %s [Raw: Sig=%u(%s) SNR=%u(%s)]\n",
-       status_desc, status & 0x1F, quality, signal_dbm, snr_db, uncorrected_blocks, ber_display, 
+  // Display with femon-like percentage reporting
+  info("%-8s (0x%02x) Quality= %s Signal= %.1f%% C/N= %.1f%% UCB= %u BER= %s [Raw: Sig=%u(%s) SNR=%u(%s)]\n",
+       status_desc, status & 0x1F, quality, signal_percent, snr_percent, uncorrected_blocks, ber_display, 
        signal_raw, signal_scale_name, snr_raw, snr_scale_name);
 }
